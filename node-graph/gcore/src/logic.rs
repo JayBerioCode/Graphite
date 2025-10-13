@@ -36,6 +36,16 @@ fn string_replace(_: impl Ctx, string: String, from: TextArea, to: TextArea) -> 
 	string.replace(&from, &to)
 }
 
+#[node_macro::node(category("Text"))]
+async fn line_from_string(_: impl Ctx, text: String, index: u32) -> String {
+	text.lines().nth(index as usize).unwrap_or("").to_owned()
+}
+
+#[node_macro::node(category("Text"))]
+async fn count_lines(_: impl Ctx, text: String) -> u32 {
+	text.lines().count() as u32
+}
+
 /// Extracts a substring from the input string, starting at "Start" and ending before "End".
 /// Negative indices count from the end of the string.
 /// If "Start" equals or exceeds "End", the result is an empty string.
