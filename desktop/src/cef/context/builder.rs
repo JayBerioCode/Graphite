@@ -27,7 +27,7 @@ impl<H: CefEventHandler> CefContextBuilder<H> {
 	pub(crate) fn new() -> Self {
 		#[cfg(target_os = "macos")]
 		let _loader = {
-			let loader = library_loader::LibraryLoader::new(&std::env::current_exe().unwrap(), false);
+			let loader = cef::library_loader::LibraryLoader::new(&std::env::current_exe().unwrap(), false);
 			assert!(loader.load());
 			loader
 		};

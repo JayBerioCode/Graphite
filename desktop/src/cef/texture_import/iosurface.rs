@@ -19,7 +19,7 @@ pub struct IOSurfaceImporter {
 impl TextureImporter for IOSurfaceImporter {
 	fn new(info: &AcceleratedPaintInfo) -> Self {
 		Self {
-			handle: info.shared_texture_handle,
+			handle: info.shared_texture_io_surface,
 			format: *info.format.as_ref(),
 			width: info.extra.coded_size.width as u32,
 			height: info.extra.coded_size.height as u32,
@@ -73,22 +73,15 @@ impl IOSurfaceImporter {
 				// Wrap Metal texture in wgpu-hal texture
 				let hal_texture = <api::Metal as wgpu::hal::Api>::Device::texture_from_raw(
 					metal_texture,
-					&wgpu::hal::TextureDescriptor {
-						label: Some("CEF IOSurface Texture"),
-						size: wgpu::Extent3d {
-							width: self.width,
-							height: self.height,
-							depth_or_array_layers: 1,
-						},
-						mip_level_count: 1,
-						sample_count: 1,
-						dimension: wgpu::TextureDimension::D2,
-						format: format::cef_to_wgpu(self.format)?,
-						usage: wgpu::hal::TextureUses::RESOURCE,
-						memory_flags: wgpu::hal::MemoryFlags::empty(),
-						view_formats: vec![],
+					format::cef_to_wgpu(self.format)?,
+					objc2_metal::MTLTextureType::Type2D,
+					self.width,
+					self.height,
+					wgpu::hal::CopyExtent {
+						width: self.width,
+						height: self.height,
+						depth: 1,
 					},
-					None, // drop_callback
 				);
 
 				Ok(hal_texture)
@@ -127,8 +120,8 @@ impl IOSurfaceImporter {
 
 		// Convert handle to IOSurface
 		let iosurface = unsafe {
-			let cf_type = CFType::wrap_under_get_rule(self.handle as IOSurfaceRef);
-			IOSurface::from(cf_type)
+			let iosurface_ref = std::mem::transmute::<*mut c_void, IOSurfaceRef>(self.handle);
+			IOSurface::from_ptr(iosurface_ref)
 		};
 
 		// Get the Metal device from wgpu-hal
@@ -149,7 +142,9 @@ impl IOSurfaceImporter {
 		texture_descriptor.setUsage(MTLTextureUsage::ShaderRead);
 
 		// Create Metal texture from IOSurface
-		let metal_texture = unsafe { metal_device.newTextureWithDescriptor_iosurface_plane(&texture_descriptor, &iosurface, 0) };
+		let metal_texture = unsafe {
+			metal_device.lock().newTextureWithDescriptor_iosurface_plane(&texture_descriptor, &iosurface, 0)
+		};
 
 		let Some(metal_texture) = metal_texture else {
 			return Err(TextureImportError::PlatformError {
