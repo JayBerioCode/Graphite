@@ -3,10 +3,13 @@
 use super::common::{format, texture};
 use super::{TextureImportError, TextureImportResult, TextureImporter};
 use cef::{AcceleratedPaintInfo, sys::cef_color_type_t};
-use objc2_io_surface::{IOSurface, IOSurfaceRef};
-use objc2_metal::{MTLPixelFormat, MTLTextureDescriptor, MTLTextureType, MTLTextureUsage};
+use core_foundation::base::TCFType;
+use metal::{Device, MTLPixelFormat, MTLResourceOptions, MTLTextureDescriptor, MTLTextureType, MTLTextureUsage, Texture};
 use std::os::raw::c_void;
 use wgpu::hal::api;
+
+// IOSurface type from Core Foundation
+type IOSurfaceRef = *mut c_void;
 
 pub struct IOSurfaceImporter {
 	pub handle: *mut c_void,
@@ -59,28 +62,28 @@ impl IOSurfaceImporter {
 		// Get wgpu's Metal device
 		use wgpu::wgc::api::Metal;
 		let hal_texture = unsafe {
-			device.as_hal::<api::Metal, _, _>(|device| {
-				let Some(device) = device else {
+			device.as_hal::<api::Metal, _, _>(|hal_device| {
+				let Some(hal_device) = hal_device else {
 					return Err(TextureImportError::HardwareUnavailable {
 						reason: "Device is not using Metal backend".to_string(),
 					});
 				};
 
 				// Import IOSurface handle into Metal texture
-				let metal_texture = self.import_iosurface_to_metal(device)?;
+				let metal_texture = self.import_iosurface_to_metal_texture(hal_device)?;
 
 				// Wrap Metal texture in wgpu-hal texture
 				let hal_texture = <api::Metal as wgpu::hal::Api>::Device::texture_from_raw(
 					metal_texture,
 					format::cef_to_wgpu(self.format)?,
-					MTLTextureType(2), // MTLTextureType2D
-					self.width,
-					self.height,
-					wgpu::hal::CopyExtent {
+					wgpu::TextureDimension::D2,
+					wgpu::Extent3d {
 						width: self.width,
 						height: self.height,
-						depth: 1,
+						depth_or_array_layers: 1,
 					},
+					1, // mip_level_count
+					1, // sample_count
 				);
 
 				Ok(hal_texture)
@@ -111,16 +114,11 @@ impl IOSurfaceImporter {
 		Ok(texture)
 	}
 
-	fn import_iosurface_to_metal(&self, hal_device: &<api::Metal as wgpu::hal::Api>::Device) -> Result<<api::Metal as wgpu::hal::Api>::Texture, TextureImportError> {
+	fn import_iosurface_to_metal_texture(&self, hal_device: &<api::Metal as wgpu::hal::Api>::Device) -> Result<Texture, TextureImportError> {
 		// Validate dimensions
 		if self.width == 0 || self.height == 0 {
 			return Err(TextureImportError::InvalidHandle("Invalid IOSurface texture dimensions".to_string()));
 		}
-
-		// Convert handle to IOSurface
-		let iosurface = unsafe {
-			IOSurface::from_ptr(std::mem::transmute::<*mut c_void, *mut objc2::runtime::AnyObject>(self.handle))
-		};
 
 		// Get the Metal device from wgpu-hal
 		let metal_device = hal_device.raw_device();
@@ -129,30 +127,41 @@ impl IOSurfaceImporter {
 		let metal_format = self.cef_to_metal_format(self.format)?;
 
 		// Create Metal texture descriptor
-		let texture_descriptor = MTLTextureDescriptor::new();
-		texture_descriptor.setTextureType(MTLTextureType::Type2D);
-		texture_descriptor.setPixelFormat(metal_format);
-		texture_descriptor.setWidth(self.width as usize);
-		texture_descriptor.setHeight(self.height as usize);
-		texture_descriptor.setDepth(1);
-		texture_descriptor.setMipmapLevelCount(1);
-		texture_descriptor.setSampleCount(1);
-		texture_descriptor.setUsage(MTLTextureUsage::ShaderRead);
+		let descriptor = MTLTextureDescriptor::new();
+		descriptor.set_texture_type(MTLTextureType::D2);
+		descriptor.set_pixel_format(metal_format);
+		descriptor.set_width(self.width as u64);
+		descriptor.set_height(self.height as u64);
+		descriptor.set_depth(1);
+		descriptor.set_mipmap_level_count(1);
+		descriptor.set_sample_count(1);
+		descriptor.set_array_length(1);
+		descriptor.set_resource_options(MTLResourceOptions::StorageModeShared);
+		descriptor.set_usage(MTLTextureUsage::ShaderRead);
 
-		// Create Metal texture from IOSurface
-		let metal_texture = unsafe {
-			let device = metal_device.lock();
-			objc2_metal::MTLDevice::newTextureWithDescriptor_iosurface_plane(&*device, &texture_descriptor, &iosurface, 0)
-		};
+		// Create Metal texture from IOSurface using Objective-C runtime
+		unsafe {
+			let iosurface = self.handle as IOSurfaceRef;
 
-		let Some(metal_texture) = metal_texture else {
-			return Err(TextureImportError::PlatformError {
-				message: "Failed to create Metal texture from IOSurface".to_string(),
-			});
-		};
+			// Call newTextureWithDescriptor:iosurface:plane: on the Metal device
+			// This uses objc runtime to call the Metal API
+			use objc::runtime::Object;
+			use objc::{msg_send, sel, sel_impl};
 
-		tracing::trace!("Successfully created Metal texture from IOSurface");
-		Ok(metal_texture)
+			let device_ptr = metal_device.lock().as_ptr() as *mut Object;
+			let descriptor_ptr = descriptor.as_ptr() as *mut Object;
+
+			let metal_texture: *mut Object = msg_send![device_ptr, newTextureWithDescriptor:descriptor_ptr iosurface:iosurface plane:0u64];
+
+			if metal_texture.is_null() {
+				return Err(TextureImportError::PlatformError {
+					message: "Failed to create Metal texture from IOSurface".to_string(),
+				});
+			}
+
+			// Wrap in metal::Texture
+			Ok(Texture::from_ptr(metal_texture))
+		}
 	}
 
 	fn cef_to_metal_format(&self, format: cef_color_type_t) -> Result<MTLPixelFormat, TextureImportError> {
