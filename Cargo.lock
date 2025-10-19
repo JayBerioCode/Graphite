@@ -2305,6 +2305,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "graphite-desktop-platform-win"
+version = "0.1.0"
+dependencies = [
+ "cef-dll-sys",
+ "graphite-desktop",
+]
+
+[[package]]
 name = "graphite-desktop-wrapper"
 version = "0.1.0"
 dependencies = [

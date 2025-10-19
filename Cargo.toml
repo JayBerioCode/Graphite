@@ -4,6 +4,7 @@ members = [
 	"desktop/wrapper",
 	"desktop/embedded-resources",
 	"desktop/platform/mac",
+	"desktop/platform/win",
 	"editor",
 	"frontend/wasm",
 	"libraries/dyn-any",
