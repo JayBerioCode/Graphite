@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+
+use crate::common::*;
 
 const PACKAGE_NAME: &str = "graphite-desktop-platform-mac";
 const HELPER_BIN: &str = "graphite-desktop-platform-mac-helper";
@@ -22,15 +23,10 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 		panic!("This bundler is only for MacOS");
 	}
 
-	let mut profile = env!("CARGO_PROFILE");
-	let profile_path = PathBuf::from(env!("CARGO_WORKSPACE_DIR")).join(format!("target/{profile}"));
-	if profile == "debug" {
-		profile = "dev";
-	}
+	let app_bin = build_bin(PACKAGE_NAME, None)?;
+	let helper_bin = build_bin(PACKAGE_NAME, Some(HELPER_BIN))?;
 
-	let app_bin = build_bin(profile, &profile_path, None)?;
-	let helper_bin = build_bin(profile, &profile_path, Some(""))?;
-
+	let profile_path = profile_path();
 	let app_dir = bundle(&profile_path, &app_bin, &helper_bin);
 
 	// TODO: Consider adding more useful cli
@@ -45,8 +41,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 fn bundle(out_dir: &Path, app_bin: &Path, helper_bin: &Path) -> PathBuf {
 	let app_dir = create_app(out_dir, APP_ID, APP_NAME, app_bin, false);
 
-	copy_cef(&app_dir);
-
 	for &helper_type in HELPER_TYPES {
 		let helper_id_suffix = helper_type.map(|t| format!(".{t}")).unwrap_or_default();
 		let helper_id = format!("{APP_ID}.helper{helper_id_suffix}");
@@ -54,6 +48,8 @@ fn bundle(out_dir: &Path, app_bin: &Path, helper_bin: &Path) -> PathBuf {
 		let helper_name = format!("{HELPER_BASE_NAME}{helper_name_suffix}");
 		create_app(&app_dir.join(FRAMEWORKS_PATH), &helper_id, &helper_name, helper_bin, true);
 	}
+
+	copy_cef(&app_dir);
 
 	app_dir
 }
@@ -73,7 +69,7 @@ fn create_app(out_dir: &Path, id: &str, name: &str, bin: &Path, is_helper: bool)
 }
 
 fn copy_cef(app_dir: &Path) {
-	let cef_src = PathBuf::from(std::env::var("CEF_PATH").expect("CEF_PATH needs to be set"));
+	let cef_src = cef_path();
 	let dest: PathBuf = app_dir.join(FRAMEWORKS_PATH).join(FRAMEWORK);
 	if dest.exists() {
 		fs::remove_dir_all(&dest).unwrap();
