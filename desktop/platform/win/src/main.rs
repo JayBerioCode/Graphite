@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "app", windows_subsystem = "windows")]
+#![windows_subsystem = "windows"]
 
 #[cfg(feature = "app")]
 fn main() {
