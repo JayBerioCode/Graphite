@@ -5,13 +5,10 @@ use std::path::{Path, PathBuf};
 
 use crate::common::*;
 
-const PACKAGE_NAME: &str = "graphite-desktop-platform-mac";
-const HELPER_BIN: &str = "graphite-desktop-platform-mac-helper";
-
 const APP_ID: &str = "rs.graphite.GraphiteEditor";
-const APP_NAME: &str = "Graphite Editor";
-const HELPER_BASE_NAME: &str = "Graphite Editor Helper";
-const HELPER_TYPES: &[Option<&str>] = &[None, Some("GPU"), Some("Renderer"), Some("Plugin"), Some("Alerts")];
+
+const PACKAGE: &str = "graphite-desktop-platform-mac";
+const HELPER_BIN: &str = "graphite-desktop-platform-mac-helper";
 
 const EXEC_PATH: &str = "Contents/MacOS";
 const FRAMEWORKS_PATH: &str = "Contents/Frameworks";
@@ -23,8 +20,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 		panic!("This bundler is only for MacOS");
 	}
 
-	let app_bin = build_bin(PACKAGE_NAME, None)?;
-	let helper_bin = build_bin(PACKAGE_NAME, Some(HELPER_BIN))?;
+	let app_bin = build_bin(PACKAGE, None)?;
+	let helper_bin = build_bin(PACKAGE, Some(HELPER_BIN))?;
 
 	let profile_path = profile_path();
 	let app_dir = bundle(&profile_path, &app_bin, &helper_bin);
@@ -39,42 +36,36 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn bundle(out_dir: &Path, app_bin: &Path, helper_bin: &Path) -> PathBuf {
-	let app_dir = create_app(out_dir, APP_ID, APP_NAME, app_bin, false);
+	let app_dir = out_dir.join(name).with_extension("app");
 
-	for &helper_type in HELPER_TYPES {
+	clean_dir(&app_dir);
+
+	let app_dir = create_app(app_dir, APP_ID, APP_NAME, app_bin, false);
+
+	for &helper_type in [None, Some("GPU"), Some("Renderer"), Some("Plugin"), Some("Alerts")] {
 		let helper_id_suffix = helper_type.map(|t| format!(".{t}")).unwrap_or_default();
 		let helper_id = format!("{APP_ID}.helper{helper_id_suffix}");
 		let helper_name_suffix = helper_type.map(|t| format!(" ({t})")).unwrap_or_default();
-		let helper_name = format!("{HELPER_BASE_NAME}{helper_name_suffix}");
-		create_app(&app_dir.join(FRAMEWORKS_PATH), &helper_id, &helper_name, helper_bin, true);
+		let helper_name = format!("{APP_NAME} Helper{helper_name_suffix}");
+		let helper_app_dir = app_dir.join(FRAMEWORKS_PATH).join(helper_name).with_extension("app");
+		create_app(&helper_app_dir, &helper_id, &helper_name, helper_bin, true);
 	}
 
-	copy_cef(&app_dir);
+	copy_dir(&cef_path().join(FRAMEWORK), &app_dir.join(FRAMEWORKS_PATH).join(FRAMEWORK));
 
 	app_dir
 }
 
-fn create_app(out_dir: &Path, id: &str, name: &str, bin: &Path, is_helper: bool) -> PathBuf {
-	let bundle = out_dir.join(name).with_extension("app");
-	fs::create_dir_all(bundle.join(EXEC_PATH)).unwrap();
+fn create_app(app_dir: &Path, id: &str, name: &str, bin: &Path, is_helper: bool) {
+	fs::create_dir_all(app_dir.join(EXEC_PATH)).unwrap();
 
-	let app_contents_dir: &Path = &bundle.join("Contents");
+	let app_contents_dir: &Path = &app_dir.join("Contents");
 	for p in &[EXEC_PATH, RESOURCES_PATH, FRAMEWORKS_PATH] {
 		fs::create_dir_all(app_contents_dir.join(p)).unwrap();
 	}
 
 	create_info_plist(app_contents_dir, id, name, is_helper).unwrap();
-	fs::copy(bin, bundle.join(EXEC_PATH).join(name)).unwrap();
-	bundle
-}
-
-fn copy_cef(app_dir: &Path) {
-	let cef_src = cef_path();
-	let dest: PathBuf = app_dir.join(FRAMEWORKS_PATH).join(FRAMEWORK);
-	if dest.exists() {
-		fs::remove_dir_all(&dest).unwrap();
-	}
-	copy_directory(&cef_src.join(FRAMEWORK), &dest);
+	fs::copy(bin, app_dir.join(EXEC_PATH).join(name)).unwrap();
 }
 
 fn create_info_plist(dir: &Path, id: &str, exec_name: &str, is_helper: bool) -> Result<(), Box<dyn std::error::Error>> {

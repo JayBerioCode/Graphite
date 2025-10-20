@@ -3,6 +3,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+pub(crate) const APP_NAME: &str = "Graphite Editor";
+
 fn profile_name() -> &'static str {
 	let mut profile = env!("CARGO_PROFILE");
 	if profile == "debug" {
@@ -43,13 +45,20 @@ pub(crate) fn run_command(program: &str, args: &[&str]) -> Result<(), Box<dyn st
 	Ok(())
 }
 
-pub(crate) fn copy_directory(src: &Path, dst: &Path) {
+pub(crate) fn empty_dir(dir: &Path) {
+	if dir.exists() {
+		fs::remove_dir_all(dir).unwrap();
+	}
+	fs::create_dir_all(dir).unwrap();
+}
+
+pub(crate) fn copy_dir(src: &Path, dst: &Path) {
 	fs::create_dir_all(dst).unwrap();
 	for entry in fs::read_dir(src).unwrap() {
 		let entry = entry.unwrap();
 		let dst_path = dst.join(entry.file_name());
 		if entry.file_type().unwrap().is_dir() {
-			copy_directory(&entry.path(), &dst_path);
+			copy_dir(&entry.path(), &dst_path);
 		} else {
 			fs::copy(entry.path(), &dst_path).unwrap();
 		}
