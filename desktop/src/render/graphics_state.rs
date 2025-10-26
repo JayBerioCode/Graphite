@@ -20,7 +20,6 @@ pub(crate) struct GraphicsState {
 	bind_group: Option<wgpu::BindGroup>,
 	#[derivative(Debug = "ignore")]
 	overlays_scene: Option<vello::Scene>,
-	overlays_scene_scale: f64,
 }
 
 impl GraphicsState {
@@ -179,7 +178,6 @@ impl GraphicsState {
 			ui_texture: None,
 			bind_group: None,
 			overlays_scene: None,
-			overlays_scene_scale: 1.0,
 		}
 	}
 
@@ -214,21 +212,17 @@ impl GraphicsState {
 		self.viewport_offset = offset;
 	}
 
-	pub(crate) fn set_overlays_scene(&mut self, scene: vello::Scene, scale: f64) {
+	pub(crate) fn set_overlays_scene(&mut self, scene: vello::Scene) {
 		self.overlays_scene = Some(scene);
-		self.overlays_scene_scale = scale;
 	}
 
-	fn render_overlays(&mut self, scene: vello::Scene, scale: f64) {
+	fn render_overlays(&mut self, scene: vello::Scene) {
 		let Some(viewport_texture) = self.viewport_texture.as_ref() else {
 			tracing::warn!("No viewport texture bound, cannot render overlays");
 			return;
 		};
-		let mut scaled_scene = vello::Scene::new();
-		let scale_transform = vello::kurbo::Affine::scale(scale);
-		scaled_scene.append(&scene, Some(scale_transform));
 		let size = glam::UVec2::new(viewport_texture.width(), viewport_texture.height());
-		let texture = futures::executor::block_on(self.executor.render_vello_scene_to_texture(&scaled_scene, size, &Default::default(), Color::TRANSPARENT));
+		let texture = futures::executor::block_on(self.executor.render_vello_scene_to_texture(&scene, size, &Default::default(), Color::TRANSPARENT));
 		let Ok(texture) = texture else {
 			tracing::error!("Error rendering overlays");
 			return;
@@ -238,7 +232,7 @@ impl GraphicsState {
 
 	pub(crate) fn render(&mut self, window: &Window) -> Result<(), wgpu::SurfaceError> {
 		if let Some(scene) = self.overlays_scene.take() {
-			self.render_overlays(scene, self.overlays_scene_scale);
+			self.render_overlays(scene);
 		}
 
 		let output = self.surface.get_current_texture()?;
