@@ -35,6 +35,8 @@ impl<H: CefEventHandler> ImplRenderHandler for RenderHandlerImpl<H> {
 		if let Some(screen_info) = screen_info {
 			let view_info = self.event_handler.view_info();
 
+			screen_info.device_scale_factor = view_info.scale() as f32;
+
 			let rect = Rect {
 				x: 0,
 				y: 0,

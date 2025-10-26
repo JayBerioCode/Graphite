@@ -74,6 +74,9 @@ impl ViewInfo {
 			_ => {}
 		}
 	}
+	pub(crate) fn scale(&self) -> f64 {
+		self.scale
+	}
 	pub(crate) fn scaled_width(&self) -> usize {
 		(self.width as f64 / self.scale).round() as usize
 	}
