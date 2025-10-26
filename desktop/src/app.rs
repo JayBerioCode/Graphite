@@ -167,7 +167,7 @@ impl App {
 			}
 			DesktopFrontendMessage::UpdateOverlays(scene) => {
 				if let Some(graphics_state) = &mut self.graphics_state {
-					graphics_state.set_overlays_scene(scene);
+					graphics_state.set_overlays_scene(scene, 1.0 / self.window_scale);
 				}
 			}
 			DesktopFrontendMessage::MinimizeWindow => {
