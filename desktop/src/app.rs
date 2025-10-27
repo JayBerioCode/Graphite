@@ -20,8 +20,8 @@ use crate::event::{AppEvent, AppEventScheduler};
 use crate::persist::PersistentData;
 use crate::render::GraphicsState;
 use crate::window::Window;
-use graphite_desktop_wrapper::messages::{DesktopFrontendMessage, DesktopWrapperMessage, Platform};
-use graphite_desktop_wrapper::{DesktopWrapper, NodeGraphExecutionResult, WgpuContext, serialize_frontend_messages};
+use crate::wrapper::messages::{DesktopFrontendMessage, DesktopWrapperMessage, Platform};
+use crate::wrapper::{DesktopWrapper, NodeGraphExecutionResult, WgpuContext, serialize_frontend_messages};
 
 pub(crate) struct App {
 	cef_context: Box<dyn cef::CefContext>,
@@ -261,6 +261,11 @@ impl App {
 					}
 				});
 			}
+			DesktopFrontendMessage::UpdateMenu { entries } => {
+				if let Some(window) = &self.window {
+					window.update_menu(entries);
+				}
+			}
 		}
 	}
 
@@ -341,12 +346,15 @@ impl App {
 				tracing::info!("Exiting main event loop");
 				event_loop.exit();
 			}
+			AppEvent::MenuEvent { id } => {
+				self.dispatch_desktop_wrapper_message(DesktopWrapperMessage::MenuEvent { id });
+			}
 		}
 	}
 }
 impl ApplicationHandler for App {
 	fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-		let window = Window::new(event_loop);
+		let window = Window::new(event_loop, self.app_event_scheduler.clone());
 
 		self.window_scale = window.scale_factor();
 		let _ = self.cef_view_info_sender.send(cef::ViewInfoUpdate::Scale(self.window_scale));
