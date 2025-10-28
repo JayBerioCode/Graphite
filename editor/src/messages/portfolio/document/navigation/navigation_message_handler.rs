@@ -214,7 +214,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 
 				let new_scale = *VIEWPORT_ZOOM_LEVELS.iter().rev().find(|scale| **scale < ptz.zoom()).unwrap_or(&ptz.zoom());
 				if center_on_mouse {
-					responses.add(self.center_zoom(ipp.viewport_bounds.size(), new_scale / ptz.zoom(), ipp.mouse.position));
+					responses.add(self.center_zoom(ipp.viewport_bounds.size() * ipp.viewport_scale, new_scale / ptz.zoom(), ipp.mouse.position));
 				}
 				responses.add(NavigationMessage::CanvasZoomSet { zoom_factor: new_scale });
 			}
@@ -225,7 +225,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 
 				let new_scale = *VIEWPORT_ZOOM_LEVELS.iter().find(|scale| **scale > ptz.zoom()).unwrap_or(&ptz.zoom());
 				if center_on_mouse {
-					responses.add(self.center_zoom(ipp.viewport_bounds.size(), new_scale / ptz.zoom(), ipp.mouse.position));
+					responses.add(self.center_zoom(ipp.viewport_bounds.size() * ipp.viewport_scale, new_scale / ptz.zoom(), ipp.mouse.position));
 				}
 				responses.add(NavigationMessage::CanvasZoomSet { zoom_factor: new_scale });
 			}
@@ -237,7 +237,10 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 				}
 				let document_bounds = if !graph_view_overlay_open {
 					// TODO: Cache this in node graph coordinates and apply the transform to the rectangle to get viewport coordinates
-					network_interface.document_metadata().document_bounds_viewport_space()
+					network_interface
+						.document_metadata()
+						.document_bounds_viewport_space()
+						.map(|rect| [rect[0] * ipp.viewport_scale, rect[1] * ipp.viewport_scale])
 				} else {
 					network_interface.graph_bounds_viewport_space(breadcrumb_network_path)
 				};
@@ -247,7 +250,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 
 				zoom_factor *= Self::clamp_zoom(ptz.zoom() * zoom_factor, document_bounds, old_zoom, ipp);
 
-				responses.add(self.center_zoom(ipp.viewport_bounds.size(), zoom_factor, ipp.mouse.position));
+				responses.add(self.center_zoom(ipp.viewport_bounds.size() * ipp.viewport_scale, zoom_factor, ipp.mouse.position));
 				responses.add(NavigationMessage::CanvasZoomSet {
 					zoom_factor: ptz.zoom() * zoom_factor,
 				});
@@ -255,7 +258,10 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 			NavigationMessage::CanvasZoomSet { zoom_factor } => {
 				let document_bounds = if !graph_view_overlay_open {
 					// TODO: Cache this in node graph coordinates and apply the transform to the rectangle to get viewport coordinates
-					network_interface.document_metadata().document_bounds_viewport_space()
+					network_interface
+						.document_metadata()
+						.document_bounds_viewport_space()
+						.map(|rect| [rect[0] * ipp.viewport_scale, rect[1] * ipp.viewport_scale])
 				} else {
 					network_interface.graph_bounds_viewport_space(breadcrumb_network_path)
 				};
@@ -355,7 +361,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 				let document_to_viewport = self.calculate_offset_transform(ipp.viewport_bounds.center(), ptz);
 
 				let v1 = document_to_viewport.inverse().transform_point2(DVec2::ZERO);
-				let v2 = document_to_viewport.inverse().transform_point2(ipp.viewport_bounds.size());
+				let v2 = document_to_viewport.inverse().transform_point2(ipp.viewport_bounds.size() * ipp.viewport_scale);
 
 				let center = ((v2 + v1) - (pos2 + pos1)) / 2.;
 				let size = (v2 - v1) / diagonal;

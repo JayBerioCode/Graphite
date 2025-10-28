@@ -1,8 +1,10 @@
+use graph_craft::document::value::DVec2;
 use graphene_std::Color;
 use graphene_std::raster::Image;
 use graphite_editor::messages::app_window::app_window_message_handler::AppWindowPlatform;
+use graphite_editor::messages::input_mapper::utility_types::input_mouse::ViewportBounds;
 use graphite_editor::messages::layout::LayoutMessage;
-use graphite_editor::messages::prelude::{AppWindowMessage, DocumentMessage, FrontendMessage, PortfolioMessage, PreferencesMessage};
+use graphite_editor::messages::prelude::{AppWindowMessage, DocumentMessage, FrontendMessage, InputPreprocessorMessage, PortfolioMessage, PreferencesMessage};
 use graphite_editor::messages::tool::tool_messages::tool_prelude::{LayoutTarget, WidgetId};
 
 use crate::messages::Platform;
@@ -109,6 +111,14 @@ pub(super) fn handle_desktop_wrapper_message(dispatcher: &mut DesktopWrapperMess
 				parent_and_insert_index: None,
 			};
 			dispatcher.queue_editor_message(message);
+		}
+		DesktopWrapperMessage::UpdateViewportInfo { x, y, width, height, scale } => {
+			let bounds = ViewportBounds {
+				top_left: DVec2::new(x, y),
+				bottom_right: DVec2::new(x + width, y + height),
+			};
+			let message = InputPreprocessorMessage::UpdateViewportInfo { bounds, scale };
+			dispatcher.queue_editor_message_replacement(message);
 		}
 		DesktopWrapperMessage::PollNodeGraphEvaluation => dispatcher.poll_node_graph_evaluation(),
 		DesktopWrapperMessage::UpdatePlatform(platform) => {

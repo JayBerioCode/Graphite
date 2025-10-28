@@ -9,6 +9,7 @@ use crate::messages::prelude::*;
 pub struct DialogMessageContext<'a> {
 	pub portfolio: &'a PortfolioMessageHandler,
 	pub viewport_bounds: &'a ViewportBounds,
+	pub viewport_scale: f64,
 	pub preferences: &'a PreferencesMessageHandler,
 }
 
@@ -27,11 +28,15 @@ impl MessageHandler<DialogMessage, DialogMessageContext<'_>> for DialogMessageHa
 			portfolio,
 			preferences,
 			viewport_bounds,
+			viewport_scale,
 		} = context;
 
 		match message {
 			DialogMessage::ExportDialog(message) => self.export_dialog.process_message(message, responses, ExportDialogMessageContext { portfolio }),
-			DialogMessage::NewDocumentDialog(message) => self.new_document_dialog.process_message(message, responses, NewDocumentDialogMessageContext { viewport_bounds }),
+			DialogMessage::NewDocumentDialog(message) => {
+				let context = NewDocumentDialogMessageContext { viewport_bounds, viewport_scale };
+				self.new_document_dialog.process_message(message, responses, context);
+			}
 			DialogMessage::PreferencesDialog(message) => self.preferences_dialog.process_message(message, responses, PreferencesDialogMessageContext { preferences }),
 
 			DialogMessage::CloseAllDocumentsWithConfirmation => {

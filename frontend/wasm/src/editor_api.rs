@@ -516,13 +516,13 @@ impl EditorHandle {
 		self.dispatch(message);
 	}
 
-	/// Send new bounds when document panel viewports get resized or moved within the editor
-	/// [left, top, right, bottom]...
-	#[wasm_bindgen(js_name = boundsOfViewports)]
-	pub fn bounds_of_viewports(&self, bounds_of_viewports: &[f64]) {
-		let chunked: Vec<_> = bounds_of_viewports.chunks(4).map(ViewportBounds::from_slice).collect();
+	/// Send new bounds when viewport get resized or moved within the editor
+	/// [left, top, right, bottom]
+	#[wasm_bindgen(js_name = boundsOfViewport)]
+	pub fn bounds_of_viewport(&self, bounds_of_viewport: &[f64]) {
+		let bounds = ViewportBounds::from_slice(bounds_of_viewport);
 
-		let message = InputPreprocessorMessage::BoundsOfViewports { bounds_of_viewports: chunked };
+		let message = InputPreprocessorMessage::UpdateViewportInfo { bounds, scale: 1.0 };
 		self.dispatch(message);
 	}
 

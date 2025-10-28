@@ -1175,7 +1175,7 @@ impl OverlayContextInternal {
 				Some(ref typed_string) => typed_string,
 				None => &format!("{:.2}", translation.x).trim_end_matches('0').trim_end_matches('.').to_string(),
 			};
-			let x_transform = DAffine2::from_translation((quad.top_left() + quad.top_right()) / 2. * self.scale);
+			let x_transform = DAffine2::from_translation((quad.top_left() + quad.top_right()) / 2.);
 			self.text(width, COLOR_OVERLAY_BLUE, None, x_transform, 4., [Pivot::Middle, Pivot::End]);
 		}
 
@@ -1186,7 +1186,7 @@ impl OverlayContextInternal {
 				Some(ref typed_string) => typed_string,
 				None => &format!("{:.2}", translation.y).trim_end_matches('0').trim_end_matches('.').to_string(),
 			};
-			let y_transform = DAffine2::from_translation((quad.top_left() + quad.bottom_left()) / 2. * self.scale);
+			let y_transform = DAffine2::from_translation((quad.top_left() + quad.bottom_left()) / 2.);
 			let height_pivot = if translation.x > -1e-3 { Pivot::Start } else { Pivot::End };
 			self.text(height, COLOR_OVERLAY_BLUE, None, y_transform, 3., [height_pivot, Pivot::Middle]);
 		}

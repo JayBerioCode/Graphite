@@ -38,6 +38,10 @@ impl<'a> DesktopWrapperMessageDispatcher<'a> {
 		}
 	}
 
+	pub(super) fn queue_editor_message_replacement<T: Into<EditorMessage>>(&mut self, message: T) {
+		self.editor_message_queue.push(message.into());
+	}
+
 	pub(super) fn respond(&mut self, response: DesktopFrontendMessage) {
 		self.responses.push(response);
 	}

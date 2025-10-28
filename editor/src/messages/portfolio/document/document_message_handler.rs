@@ -978,7 +978,7 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 					self.navigation_handler.snapped_zoom(current_ptz.zoom() * (crate::consts::GRID_SIZE as f64))
 				};
 
-				let ruler_origin = document_to_viewport.transform_point2(DVec2::ZERO);
+				let ruler_origin = document_to_viewport.transform_point2(DVec2::ZERO) * (1. / ipp.viewport_scale);
 				let log = ruler_scale.log2();
 				let mut ruler_interval: f64 = if log < 0. { 100. * 2_f64.powf(-log.ceil()) } else { 100. / 2_f64.powf(log.ceil()) };
 
@@ -1010,8 +1010,8 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 
 				let scale = 0.5 + ASYMPTOTIC_EFFECT + document_transform_scale * SCALE_EFFECT;
 
-				let viewport_size = ipp.viewport_bounds.size();
-				let viewport_mid = ipp.viewport_bounds.center();
+				let viewport_size = ipp.viewport_bounds.size() * ipp.viewport_scale;
+				let viewport_mid = ipp.viewport_bounds.center() * ipp.viewport_scale;
 				let [bounds1, bounds2] = if !self.graph_view_overlay_open {
 					self.metadata().document_bounds_viewport_space().unwrap_or([viewport_mid; 2])
 				} else {

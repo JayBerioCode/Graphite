@@ -5,7 +5,7 @@ use crate::messages::prelude::*;
 #[impl_message(Message, InputPreprocessor)]
 #[derive(PartialEq, Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum InputPreprocessorMessage {
-	BoundsOfViewports { bounds_of_viewports: Vec<ViewportBounds> },
+	UpdateViewportInfo { bounds: ViewportBounds, scale: f64 },
 	DoubleClick { editor_mouse_state: EditorMouseState, modifier_keys: ModifierKeys },
 	KeyDown { key: Key, key_repeat: bool, modifier_keys: ModifierKeys },
 	KeyUp { key: Key, key_repeat: bool, modifier_keys: ModifierKeys },

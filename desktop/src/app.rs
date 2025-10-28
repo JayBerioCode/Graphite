@@ -150,19 +150,32 @@ impl App {
 					}
 				});
 			}
-			DesktopFrontendMessage::UpdateViewportBounds { x, y, width, height } => {
+			DesktopFrontendMessage::UpdateViewportInfo { x, y, width, height, scale: _ } => {
+				responses.push(DesktopWrapperMessage::UpdateViewportInfo {
+					x,
+					y,
+					width,
+					height,
+					scale: self.window_scale,
+				});
+
 				if let Some(graphics_state) = &mut self.graphics_state
 					&& let Some(window) = &self.window
 				{
 					let window_size = window.surface_size();
 
-					let viewport_offset_x = x / window_size.width as f32;
-					let viewport_offset_y = y / window_size.height as f32;
-					graphics_state.set_viewport_offset([viewport_offset_x, viewport_offset_y]);
+					let x = x * self.window_scale;
+					let y = y * self.window_scale;
+					let width = width * self.window_scale;
+					let height = height * self.window_scale;
 
-					let viewport_scale_x = if width != 0.0 { window_size.width as f32 / width } else { 1.0 };
-					let viewport_scale_y = if height != 0.0 { window_size.height as f32 / height } else { 1.0 };
-					graphics_state.set_viewport_scale([viewport_scale_x, viewport_scale_y]);
+					let viewport_offset_x = x / window_size.width as f64;
+					let viewport_offset_y = y / window_size.height as f64;
+					graphics_state.set_viewport_offset([viewport_offset_x as f32, viewport_offset_y as f32]);
+
+					let viewport_scale_x = if width != 0.0 { window_size.width as f64 / width } else { 1.0 };
+					let viewport_scale_y = if height != 0.0 { window_size.height as f64 / height } else { 1.0 };
+					graphics_state.set_viewport_scale([viewport_scale_x as f32, viewport_scale_y as f32]);
 				}
 			}
 			DesktopFrontendMessage::UpdateOverlays(scene) => {

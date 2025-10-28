@@ -115,6 +115,9 @@ pub enum PortfolioMessage {
 	SetDevicePixelRatio {
 		ratio: f64,
 	},
+	SetViewportScale {
+		scale: f64,
+	},
 	SelectDocument {
 		document_id: DocumentId,
 	},

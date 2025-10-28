@@ -147,6 +147,7 @@ impl Dispatcher {
 						portfolio: &self.message_handlers.portfolio_message_handler,
 						preferences: &self.message_handlers.preferences_message_handler,
 						viewport_bounds: &self.message_handlers.input_preprocessor_message_handler.viewport_bounds,
+						viewport_scale: self.message_handlers.input_preprocessor_message_handler.viewport_scale,
 					};
 					self.message_handlers.dialog_message_handler.process_message(message, &mut queue, context);
 				}

@@ -25,11 +25,12 @@ pub enum DesktopFrontendMessage {
 		content: Vec<u8>,
 	},
 	OpenUrl(String),
-	UpdateViewportBounds {
-		x: f32,
-		y: f32,
-		width: f32,
-		height: f32,
+	UpdateViewportInfo {
+		x: f64,
+		y: f64,
+		width: f64,
+		height: f64,
+		scale: f64,
 	},
 	UpdateOverlays(vello::Scene),
 	MinimizeWindow,
@@ -90,6 +91,13 @@ pub enum DesktopWrapperMessage {
 	ImportImage {
 		path: PathBuf,
 		content: Vec<u8>,
+	},
+	UpdateViewportInfo {
+		x: f64,
+		y: f64,
+		width: f64,
+		height: f64,
+		scale: f64,
 	},
 	PollNodeGraphEvaluation,
 	UpdatePlatform(Platform),

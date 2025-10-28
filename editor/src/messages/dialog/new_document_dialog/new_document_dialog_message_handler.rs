@@ -6,6 +6,7 @@ use graph_craft::document::NodeId;
 #[derive(ExtractField)]
 pub struct NewDocumentDialogMessageContext<'a> {
 	pub viewport_bounds: &'a ViewportBounds,
+	pub viewport_scale: f64,
 }
 
 /// A dialog to allow users to set some initial options about a new document.
@@ -37,8 +38,9 @@ impl<'a> MessageHandler<NewDocumentDialogMessage, NewDocumentDialogMessageContex
 					responses.add(NodeGraphMessage::RunDocumentGraph);
 					// If we already have bounds, we won't receive a viewport bounds update so we just fabricate one ourselves
 					if *context.viewport_bounds != ViewportBounds::default() {
-						responses.add(InputPreprocessorMessage::BoundsOfViewports {
-							bounds_of_viewports: vec![context.viewport_bounds.clone()],
+						responses.add(InputPreprocessorMessage::UpdateViewportInfo {
+							bounds: context.viewport_bounds.clone(),
+							scale: context.viewport_scale,
 						});
 					}
 					responses.add(DeferMessage::AfterNavigationReady {

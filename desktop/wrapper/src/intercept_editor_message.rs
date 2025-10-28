@@ -5,18 +5,17 @@ use super::messages::{DesktopFrontendMessage, EditorMessage};
 
 pub(super) fn intercept_editor_message(dispatcher: &mut DesktopWrapperMessageDispatcher, message: EditorMessage) -> Option<EditorMessage> {
 	match message {
-		EditorMessage::InputPreprocessor(message) => {
-			if let InputPreprocessorMessage::BoundsOfViewports { bounds_of_viewports } = &message {
-				let top_left = bounds_of_viewports[0].top_left;
-				let bottom_right = bounds_of_viewports[0].bottom_right;
-				dispatcher.respond(DesktopFrontendMessage::UpdateViewportBounds {
-					x: top_left.x as f32,
-					y: top_left.y as f32,
-					width: (bottom_right.x - top_left.x) as f32,
-					height: (bottom_right.y - top_left.y) as f32,
-				});
-			}
-			Some(EditorMessage::InputPreprocessor(message))
+		EditorMessage::InputPreprocessor(InputPreprocessorMessage::UpdateViewportInfo { bounds, scale }) => {
+			let top_left = bounds.top_left;
+			let bottom_right = bounds.bottom_right;
+			dispatcher.respond(DesktopFrontendMessage::UpdateViewportInfo {
+				x: top_left.x,
+				y: top_left.y,
+				width: (bottom_right.x - top_left.x),
+				height: (bottom_right.y - top_left.y),
+				scale,
+			});
+			None
 		}
 		m => Some(m),
 	}
