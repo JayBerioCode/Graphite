@@ -42,6 +42,7 @@ pub struct PortfolioMessageContext<'a> {
 	pub message_logging_verbosity: MessageLoggingVerbosity,
 	pub reset_node_definitions_on_open: bool,
 	pub timing_information: TimingInformation,
+	pub viewport: &'a ViewportMessageHandler,
 }
 
 #[derive(Debug, Derivative, ExtractField)]
@@ -77,6 +78,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 			message_logging_verbosity,
 			reset_node_definitions_on_open,
 			timing_information,
+			viewport,
 		} = context;
 
 		match message {
@@ -125,7 +127,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 							executor: &mut self.executor,
 							current_tool,
 							preferences,
-							device_pixel_ratio: self.device_pixel_ratio.unwrap_or(1.),
+							viewport,
 							data_panel_open: self.data_panel_open,
 							layers_panel_open: self.layers_panel_open,
 							properties_panel_open: self.properties_panel_open,
@@ -166,7 +168,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 						executor: &mut self.executor,
 						current_tool,
 						preferences,
-						device_pixel_ratio: self.device_pixel_ratio.unwrap_or(1.),
+						viewport,
 						data_panel_open: self.data_panel_open,
 						layers_panel_open: self.layers_panel_open,
 						properties_panel_open: self.properties_panel_open,
@@ -362,7 +364,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 				self.executor.update_font_cache(self.persistent_data.font_cache.clone());
 				for document_id in self.document_ids.iter() {
 					let node_to_inspect = self.node_to_inspect();
-					let viewport_resolution = (ipp.viewport_bounds.size() * ipp.viewport_scale).round().as_uvec2();
+					let viewport_resolution = viewport.physical_size().into_dvec2().round().as_uvec2();
 					if let Ok(message) = self.executor.submit_node_graph_evaluation(
 						self.documents.get_mut(document_id).expect("Tried to render non-existent document"),
 						*document_id,
@@ -701,7 +703,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 			}
 			PortfolioMessage::CenterPastedLayers { layers } => {
 				if let Some(document) = self.active_document_mut() {
-					let viewport_bounds_quad_pixels = Quad::from_box([DVec2::ZERO, ipp.viewport_bounds.size()]);
+					let viewport_bounds_quad_pixels = Quad::from_box([DVec2::ZERO, viewport.physical_size().into_dvec2()]); // In viewport pixel coordinates
 					let viewport_center_pixels = viewport_bounds_quad_pixels.center(); // In viewport pixel coordinates
 
 					let doc_to_viewport_transform = document.metadata().document_to_viewport;
@@ -966,7 +968,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 			}
 			PortfolioMessage::SubmitGraphRender { document_id, ignore_hash } => {
 				let node_to_inspect = self.node_to_inspect();
-				let viewport_resolution = (ipp.viewport_bounds.size() * ipp.viewport_scale).round().as_uvec2();
+				let viewport_resolution = viewport.physical_size().into_dvec2().round().as_uvec2();
 				let Some(document) = self.documents.get_mut(&document_id) else {
 					log::error!("Tried to render non-existent document");
 					return;

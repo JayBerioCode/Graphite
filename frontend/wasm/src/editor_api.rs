@@ -8,7 +8,7 @@ use crate::helpers::translate_key;
 use crate::{EDITOR_HANDLE, EDITOR_HAS_CRASHED, Error, MESSAGE_BUFFER};
 use editor::consts::FILE_EXTENSION;
 use editor::messages::input_mapper::utility_types::input_keyboard::ModifierKeys;
-use editor::messages::input_mapper::utility_types::input_mouse::{EditorMouseState, ScrollDelta, ViewportBounds};
+use editor::messages::input_mapper::utility_types::input_mouse::{EditorMouseState, ScrollDelta};
 use editor::messages::portfolio::document::utility_types::document_metadata::LayerNodeIdentifier;
 use editor::messages::portfolio::document::utility_types::network_interface::ImportOrExport;
 use editor::messages::portfolio::utility_types::Platform;
@@ -519,10 +519,13 @@ impl EditorHandle {
 	/// Send new bounds when viewport get resized or moved within the editor
 	/// [left, top, right, bottom]
 	#[wasm_bindgen(js_name = boundsOfViewport)]
-	pub fn bounds_of_viewport(&self, bounds_of_viewport: &[f64]) {
-		let bounds = ViewportBounds::from_slice(bounds_of_viewport);
+	pub fn bounds_of_viewport(&self, bounds: &[f64]) {
+		let x = bounds[0];
+		let y = bounds[1];
+		let width = bounds[2] - bounds[0];
+		let height = bounds[3] - bounds[1];
 
-		let message = InputPreprocessorMessage::UpdateViewportInfo { bounds, scale: 1.0 };
+		let message = ViewportMessage::UpdateBounds { x, y, width, height };
 		self.dispatch(message);
 	}
 

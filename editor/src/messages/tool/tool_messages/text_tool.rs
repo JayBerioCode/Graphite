@@ -499,6 +499,7 @@ impl Fsm for TextToolFsmState {
 			global_tool_data,
 			input,
 			font_cache,
+			viewport,
 			..
 		} = transition_data;
 		let fill_color = graphene_std::Color::from_rgb_str(COLOR_OVERLAY_BLUE.strip_prefix('#').unwrap())
@@ -528,7 +529,7 @@ impl Fsm for TextToolFsmState {
 					let quad = Quad::from_box(tool_data.cached_resize_bounds);
 
 					// Draw a bounding box on the layers to be selected
-					for layer in document.intersect_quad_no_artboards(quad, input) {
+					for layer in document.intersect_quad_no_artboards(quad, viewport) {
 						overlay_context.quad(
 							Quad::from_box(document.metadata().bounding_box_viewport(layer).unwrap_or([DVec2::ZERO; 2])),
 							None,
@@ -571,7 +572,7 @@ impl Fsm for TextToolFsmState {
 					tool_data.bounding_box_manager.take();
 				}
 
-				tool_data.resize.snap_manager.draw_overlays(SnapData::new(document, input), &mut overlay_context);
+				tool_data.resize.snap_manager.draw_overlays(SnapData::new(document, input, viewport), &mut overlay_context);
 
 				self
 			}
@@ -584,7 +585,7 @@ impl Fsm for TextToolFsmState {
 				state
 			}
 			(TextToolFsmState::Ready, TextToolMessage::DragStart) => {
-				tool_data.resize.start(document, input);
+				tool_data.resize.start(document, input, viewport);
 				tool_data.cached_resize_bounds = [tool_data.resize.viewport_drag_start(document); 2];
 				tool_data.drag_start = input.mouse.position;
 				tool_data.drag_current = input.mouse.position;
@@ -658,7 +659,7 @@ impl Fsm for TextToolFsmState {
 				TextToolFsmState::Ready
 			}
 			(TextToolFsmState::Placing, TextToolMessage::PointerMove { center, lock_ratio }) => {
-				tool_data.cached_resize_bounds = tool_data.resize.calculate_points_ignore_layer(document, input, center, lock_ratio, false);
+				tool_data.cached_resize_bounds = tool_data.resize.calculate_points_ignore_layer(document, input, viewport, center, lock_ratio, false);
 
 				responses.add(OverlaysMessage::Draw);
 
@@ -667,7 +668,7 @@ impl Fsm for TextToolFsmState {
 					TextToolMessage::PointerOutsideViewport { center, lock_ratio }.into(),
 					TextToolMessage::PointerMove { center, lock_ratio }.into(),
 				];
-				tool_data.auto_panning.setup_by_mouse_position(input, &messages, responses);
+				tool_data.auto_panning.setup_by_mouse_position(input, viewport, &messages, responses);
 
 				TextToolFsmState::Placing
 			}
@@ -690,7 +691,7 @@ impl Fsm for TextToolFsmState {
 						TextToolMessage::PointerOutsideViewport { center, lock_ratio }.into(),
 						TextToolMessage::PointerMove { center, lock_ratio }.into(),
 					];
-					tool_data.auto_panning.setup_by_mouse_position(input, &messages, responses);
+					tool_data.auto_panning.setup_by_mouse_position(input, viewport, &messages, responses);
 				}
 
 				TextToolFsmState::Dragging
@@ -712,7 +713,7 @@ impl Fsm for TextToolFsmState {
 						let snap = Some(SizeSnapData {
 							manager: &mut tool_data.resize.snap_manager,
 							points: &mut tool_data.snap_candidates,
-							snap_data: SnapData::ignore(document, input, &selected),
+							snap_data: SnapData::ignore(document, input, viewport, &selected),
 						});
 
 						let (position, size) = movement.new_size(input.mouse.position, bounds.original_bound_transform, center_position, constrain, snap);
@@ -751,26 +752,26 @@ impl Fsm for TextToolFsmState {
 							TextToolMessage::PointerOutsideViewport { center, lock_ratio }.into(),
 							TextToolMessage::PointerMove { center, lock_ratio }.into(),
 						];
-						tool_data.auto_panning.setup_by_mouse_position(input, &messages, responses);
+						tool_data.auto_panning.setup_by_mouse_position(input, viewport, &messages, responses);
 					}
 				}
 				TextToolFsmState::ResizingBounds
 			}
 			(_, TextToolMessage::PointerMove { .. }) => {
-				tool_data.resize.snap_manager.preview_draw(&SnapData::new(document, input), input.mouse.position);
+				tool_data.resize.snap_manager.preview_draw(&SnapData::new(document, input, viewport), input.mouse.position);
 				responses.add(OverlaysMessage::Draw);
 
 				self
 			}
 			(TextToolFsmState::Placing, TextToolMessage::PointerOutsideViewport { .. }) => {
 				// Auto-panning setup
-				let _ = tool_data.auto_panning.shift_viewport(input, responses);
+				let _ = tool_data.auto_panning.shift_viewport(input, viewport, responses);
 
 				TextToolFsmState::Placing
 			}
 			(TextToolFsmState::ResizingBounds | TextToolFsmState::Dragging, TextToolMessage::PointerOutsideViewport { .. }) => {
 				// Auto-panning
-				if let Some(shift) = tool_data.auto_panning.shift_viewport(input, responses) {
+				if let Some(shift) = tool_data.auto_panning.shift_viewport(input, viewport, responses) {
 					if let Some(bounds) = &mut tool_data.bounding_box_manager {
 						bounds.center_of_transformation += shift;
 						bounds.original_bound_transform.translation += shift;

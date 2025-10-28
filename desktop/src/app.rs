@@ -150,15 +150,7 @@ impl App {
 					}
 				});
 			}
-			DesktopFrontendMessage::UpdateViewportInfo { x, y, width, height, scale: _ } => {
-				responses.push(DesktopWrapperMessage::UpdateViewportInfo {
-					x,
-					y,
-					width,
-					height,
-					scale: self.window_scale,
-				});
-
+			DesktopFrontendMessage::UpdateViewportBounds { x, y, width, height } => {
 				if let Some(graphics_state) = &mut self.graphics_state
 					&& let Some(window) = &self.window
 				{
@@ -177,6 +169,8 @@ impl App {
 					let viewport_scale_y = if height != 0.0 { window_size.height as f64 / height } else { 1.0 };
 					graphics_state.set_viewport_scale([viewport_scale_x as f32, viewport_scale_y as f32]);
 				}
+
+				responses.push(DesktopWrapperMessage::UpdateViewportScale { scale: self.window_scale });
 			}
 			DesktopFrontendMessage::UpdateOverlays(scene) => {
 				if let Some(graphics_state) = &mut self.graphics_state {

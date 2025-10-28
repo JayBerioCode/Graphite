@@ -4,8 +4,7 @@ use crate::messages::prelude::*;
 #[derive(ExtractField)]
 pub struct OverlaysMessageContext<'a> {
 	pub visibility_settings: OverlaysVisibilitySettings,
-	pub ipp: &'a InputPreprocessorMessageHandler,
-	pub device_pixel_ratio: f64,
+	pub viewport: &'a ViewportMessageHandler,
 }
 
 #[derive(Debug, Clone, Default, ExtractField)]
@@ -20,12 +19,7 @@ pub struct OverlaysMessageHandler {
 #[message_handler_data]
 impl MessageHandler<OverlaysMessage, OverlaysMessageContext<'_>> for OverlaysMessageHandler {
 	fn process_message(&mut self, message: OverlaysMessage, responses: &mut VecDeque<Message>, context: OverlaysMessageContext) {
-		let OverlaysMessageContext {
-			visibility_settings,
-			ipp,
-			device_pixel_ratio,
-			..
-		} = context;
+		let OverlaysMessageContext { visibility_settings, viewport, .. } = context;
 
 		match message {
 			#[cfg(target_family = "wasm")]
@@ -77,10 +71,8 @@ impl MessageHandler<OverlaysMessage, OverlaysMessageContext<'_>> for OverlaysMes
 			#[cfg(all(not(target_family = "wasm"), not(test)))]
 			OverlaysMessage::Draw => {
 				use super::utility_types::OverlayContext;
-
-				let size = ipp.viewport_bounds.size();
-
-				let overlay_context = OverlayContext::new(size, device_pixel_ratio, visibility_settings);
+				
+				let overlay_context = OverlayContext::new(*viewport, visibility_settings);
 
 				if visibility_settings.all() {
 					responses.add(DocumentMessage::GridOverlays { context: overlay_context.clone() });

@@ -5,6 +5,7 @@ use crate::consts::{
 };
 use crate::messages::portfolio::document::utility_types::document_metadata::LayerNodeIdentifier;
 use crate::messages::prelude::Message;
+use crate::messages::prelude::ViewportMessageHandler;
 use core::borrow::Borrow;
 use core::f64::consts::{FRAC_PI_2, PI, TAU};
 use glam::{DAffine2, DVec2};
@@ -157,24 +158,18 @@ pub struct OverlayContext {
 	#[serde(skip)]
 	#[specta(skip)]
 	internal: Arc<Mutex<OverlayContextInternal>>,
-	pub size: DVec2,
-	// The device pixel ratio is a property provided by the browser window and is the CSS pixel size divided by the physical monitor's pixel size.
-	// It allows better pixel density of visualizations on high-DPI displays where the OS display scaling is not 100%, or where the browser is zoomed.
-	pub device_pixel_ratio: f64,
+	pub viewport: ViewportMessageHandler,
 	pub visibility_settings: OverlaysVisibilitySettings,
 }
 
 impl Clone for OverlayContext {
 	fn clone(&self) -> Self {
 		let internal = self.internal.lock().expect("Failed to lock internal overlay context");
-		let size = internal.size;
-		let device_pixel_ratio = internal.device_pixel_ratio;
 		let visibility_settings = internal.visibility_settings;
 		drop(internal); // Explicitly release the lock before cloning the Arc<Mutex<_>>
 		Self {
 			internal: self.internal.clone(),
-			size,
-			device_pixel_ratio,
+			viewport: self.viewport,
 			visibility_settings,
 		}
 	}
@@ -183,7 +178,7 @@ impl Clone for OverlayContext {
 // Manual implementations since Scene doesn't implement PartialEq or Debug
 impl PartialEq for OverlayContext {
 	fn eq(&self, other: &Self) -> bool {
-		self.size == other.size && self.device_pixel_ratio == other.device_pixel_ratio && self.visibility_settings == other.visibility_settings
+		self.viewport == other.viewport && self.visibility_settings == other.visibility_settings
 	}
 }
 
@@ -191,8 +186,7 @@ impl std::fmt::Debug for OverlayContext {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.debug_struct("OverlayContext")
 			.field("scene", &"Scene { ... }")
-			.field("size", &self.size)
-			.field("device_pixel_ratio", &self.device_pixel_ratio)
+			.field("viewport", &self.viewport)
 			.field("visibility_settings", &self.visibility_settings)
 			.finish()
 	}
@@ -203,8 +197,7 @@ impl Default for OverlayContext {
 	fn default() -> Self {
 		Self {
 			internal: Mutex::new(OverlayContextInternal::default()).into(),
-			size: DVec2::ZERO,
-			device_pixel_ratio: 1.0,
+			viewport: ViewportMessageHandler::default(),
 			visibility_settings: OverlaysVisibilitySettings::default(),
 		}
 	}
@@ -217,11 +210,10 @@ impl core::hash::Hash for OverlayContext {
 
 impl OverlayContext {
 	#[allow(dead_code)]
-	pub(super) fn new(size: DVec2, device_pixel_ratio: f64, visibility_settings: OverlaysVisibilitySettings) -> Self {
+	pub(super) fn new(viewport: ViewportMessageHandler, visibility_settings: OverlaysVisibilitySettings) -> Self {
 		Self {
-			internal: Arc::new(Mutex::new(OverlayContextInternal::new(size, device_pixel_ratio, visibility_settings))),
-			size,
-			device_pixel_ratio,
+			internal: Arc::new(Mutex::new(OverlayContextInternal::new(viewport, visibility_settings))),
+			viewport,
 			visibility_settings,
 		}
 	}
@@ -236,7 +228,7 @@ impl OverlayContext {
 	}
 
 	pub fn reverse_scale(&self, distance: f64) -> f64 {
-		self.internal().reverse_scale(distance)
+		self.internal().inverse_scale(distance)
 	}
 
 	pub fn quad(&mut self, quad: Quad, stroke_color: Option<&str>, color_fill: Option<&str>) {
@@ -433,31 +425,23 @@ pub enum DrawHandles {
 
 pub(super) struct OverlayContextInternal {
 	scene: Scene,
-	size: DVec2,
-	device_pixel_ratio: f64,
-	scale: f64,
+	viewport: ViewportMessageHandler,
 	visibility_settings: OverlaysVisibilitySettings,
 }
 
 impl Default for OverlayContextInternal {
 	fn default() -> Self {
-		Self::new(DVec2::new(100., 100.), 1.0, OverlaysVisibilitySettings::default())
+		Self::new(ViewportMessageHandler::default(), OverlaysVisibilitySettings::default())
 	}
 }
 
 impl OverlayContextInternal {
-	pub(super) fn new(size: DVec2, device_pixel_ratio: f64, visibility_settings: OverlaysVisibilitySettings) -> Self {
+	pub(super) fn new(viewport: ViewportMessageHandler, visibility_settings: OverlaysVisibilitySettings) -> Self {
 		Self {
 			scene: Scene::new(),
-			size,
-			device_pixel_ratio: 1.0,
-			scale: device_pixel_ratio,
+			viewport,
 			visibility_settings,
 		}
-	}
-
-	fn reverse_scale(&self, distance: f64) -> f64 {
-		distance / self.scale
 	}
 
 	fn parse_color(color: &str) -> peniko::Color {
@@ -491,7 +475,7 @@ impl OverlayContextInternal {
 
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(color_fill), None, &path);
 
-		self.scene.stroke(&kurbo::Stroke::new(1.0 * self.scale), transform, Self::parse_color(color_stroke), None, &path);
+		self.scene.stroke(&kurbo::Stroke::new(self.scale(1.0)), transform, Self::parse_color(color_stroke), None, &path);
 	}
 
 	fn dashed_quad(&mut self, quad: Quad, stroke_color: Option<&str>, color_fill: Option<&str>, dash_width: Option<f64>, dash_gap_width: Option<f64>, dash_offset: Option<f64>) {
@@ -524,11 +508,11 @@ impl OverlayContextInternal {
 		}
 
 		let stroke_color = stroke_color.unwrap_or(COLOR_OVERLAY_BLUE);
-		let mut stroke = kurbo::Stroke::new(1.0 * self.scale);
+		let mut stroke = kurbo::Stroke::new(self.scale(1.0));
 
 		if let Some(dash_width) = dash_width {
 			let dash_gap = dash_gap_width.unwrap_or(1.);
-			stroke = stroke.with_dashes(dash_offset.unwrap_or(0.), [dash_width * self.scale, dash_gap * self.scale]);
+			stroke = stroke.with_dashes(dash_offset.unwrap_or(0.), [self.scale(dash_width), self.scale(dash_gap)]);
 		}
 
 		self.scene.stroke(&stroke, transform, Self::parse_color(stroke_color), None, &path);
@@ -549,11 +533,11 @@ impl OverlayContextInternal {
 		path.move_to(kurbo::Point::new(start.x, start.y));
 		path.line_to(kurbo::Point::new(end.x, end.y));
 
-		let mut stroke = kurbo::Stroke::new(thickness.unwrap_or(1.) * self.scale);
+		let mut stroke = kurbo::Stroke::new(self.scale(thickness.unwrap_or(1.)));
 
 		if let Some(dash_width) = dash_width {
 			let dash_gap = dash_gap_width.unwrap_or(1.);
-			stroke = stroke.with_dashes(dash_offset.unwrap_or(0.), [dash_width * self.scale, dash_gap * self.scale]);
+			stroke = stroke.with_dashes(dash_offset.unwrap_or(0.), [self.scale(dash_width), self.scale(dash_gap)]);
 		}
 
 		self.scene.stroke(&stroke, transform, Self::parse_color(color.unwrap_or(COLOR_OVERLAY_BLUE)), None, &path);
@@ -563,13 +547,13 @@ impl OverlayContextInternal {
 		let transform = self.get_transform();
 		let position = position.round() - DVec2::splat(0.5);
 
-		let circle = kurbo::Circle::new((position.x, position.y), MANIPULATOR_GROUP_MARKER_SIZE / 2. * self.scale);
+		let circle = kurbo::Circle::new((position.x, position.y), self.scale(MANIPULATOR_GROUP_MARKER_SIZE / 2.));
 
 		let fill = if selected { COLOR_OVERLAY_BLUE } else { COLOR_OVERLAY_WHITE };
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(fill), None, &circle);
 
 		self.scene
-			.stroke(&kurbo::Stroke::new(1.0 * self.scale), transform, Self::parse_color(color.unwrap_or(COLOR_OVERLAY_BLUE)), None, &circle);
+			.stroke(&kurbo::Stroke::new(self.scale(1.0)), transform, Self::parse_color(color.unwrap_or(COLOR_OVERLAY_BLUE)), None, &circle);
 	}
 
 	fn hover_manipulator_handle(&mut self, position: DVec2, selected: bool) {
@@ -577,19 +561,19 @@ impl OverlayContextInternal {
 
 		let position = position.round() - DVec2::splat(0.5);
 
-		let circle = kurbo::Circle::new((position.x, position.y), (MANIPULATOR_GROUP_MARKER_SIZE + 2.) / 2. * self.scale);
+		let circle = kurbo::Circle::new((position.x, position.y), self.scale((MANIPULATOR_GROUP_MARKER_SIZE + 2.) / 2.));
 
 		let fill = COLOR_OVERLAY_BLUE_50;
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(fill), None, &circle);
 		self.scene
-			.stroke(&kurbo::Stroke::new(1.0 * self.scale), transform, Self::parse_color(COLOR_OVERLAY_BLUE_50), None, &circle);
+			.stroke(&kurbo::Stroke::new(self.scale(1.0)), transform, Self::parse_color(COLOR_OVERLAY_BLUE_50), None, &circle);
 
-		let inner_circle = kurbo::Circle::new((position.x, position.y), MANIPULATOR_GROUP_MARKER_SIZE / 2. * self.scale);
+		let inner_circle = kurbo::Circle::new((position.x, position.y), self.scale(MANIPULATOR_GROUP_MARKER_SIZE / 2.));
 
 		let color_fill = if selected { COLOR_OVERLAY_BLUE } else { COLOR_OVERLAY_WHITE };
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(color_fill), None, &circle);
 		self.scene
-			.stroke(&kurbo::Stroke::new(1.0 * self.scale), transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &inner_circle);
+			.stroke(&kurbo::Stroke::new(self.scale(1.0)), transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &inner_circle);
 	}
 
 	fn manipulator_anchor(&mut self, position: DVec2, selected: bool, color: Option<&str>) {
@@ -599,18 +583,13 @@ impl OverlayContextInternal {
 	}
 
 	fn hover_manipulator_anchor(&mut self, position: DVec2, selected: bool) {
-		self.square(
-			position,
-			Some((MANIPULATOR_GROUP_MARKER_SIZE + 2.) * self.scale),
-			Some(COLOR_OVERLAY_BLUE_50),
-			Some(COLOR_OVERLAY_BLUE_50),
-		);
+		self.square(position, Some(self.scale(MANIPULATOR_GROUP_MARKER_SIZE + 2.)), Some(COLOR_OVERLAY_BLUE_50), Some(COLOR_OVERLAY_BLUE_50));
 		let color_fill = if selected { COLOR_OVERLAY_BLUE } else { COLOR_OVERLAY_WHITE };
 		self.square(position, None, Some(color_fill), Some(COLOR_OVERLAY_BLUE));
 	}
 
 	fn resize_handle(&mut self, position: DVec2, rotation: f64) {
-		let quad = DAffine2::from_angle_translation(rotation, position) * Quad::from_box([DVec2::splat(-RESIZE_HANDLE_SIZE / 2. * self.scale), DVec2::splat(RESIZE_HANDLE_SIZE / 2. * self.scale)]);
+		let quad = DAffine2::from_angle_translation(rotation, position) * Quad::from_box([DVec2::splat(self.scale(-RESIZE_HANDLE_SIZE / 2.)), DVec2::splat(self.scale(RESIZE_HANDLE_SIZE / 2.))]);
 		self.quad(quad, None, Some(COLOR_OVERLAY_WHITE));
 	}
 
@@ -619,16 +598,16 @@ impl OverlayContextInternal {
 		let mid = edge_end.midpoint(edge_start);
 
 		for edge in [edge_dir, -edge_dir] {
-			self.draw_triangle(mid + edge * (3. + SKEW_TRIANGLE_OFFSET) * self.scale, edge, SKEW_TRIANGLE_SIZE * self.scale, None, None);
+			self.draw_triangle(mid + edge * self.scale(3. + SKEW_TRIANGLE_OFFSET), edge, self.scale(SKEW_TRIANGLE_SIZE), None, None);
 		}
 	}
 
 	fn get_transform(&self) -> kurbo::Affine {
-		kurbo::Affine::scale(self.device_pixel_ratio)
+		kurbo::Affine::scale(1.0)
 	}
 
 	fn square(&mut self, position: DVec2, size: Option<f64>, color_fill: Option<&str>, color_stroke: Option<&str>) {
-		let size = size.unwrap_or(MANIPULATOR_GROUP_MARKER_SIZE) * self.scale;
+		let size = self.scale(size.unwrap_or(MANIPULATOR_GROUP_MARKER_SIZE));
 		let color_fill = color_fill.unwrap_or(COLOR_OVERLAY_WHITE);
 		let color_stroke = color_stroke.unwrap_or(COLOR_OVERLAY_BLUE);
 
@@ -640,11 +619,11 @@ impl OverlayContextInternal {
 
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(color_fill), None, &rect);
 
-		self.scene.stroke(&kurbo::Stroke::new(1.0 * self.scale), transform, Self::parse_color(color_stroke), None, &rect);
+		self.scene.stroke(&kurbo::Stroke::new(self.scale(1.0)), transform, Self::parse_color(color_stroke), None, &rect);
 	}
 
 	fn pixel(&mut self, position: DVec2, color: Option<&str>) {
-		let size = 1. * self.scale;
+		let size = self.scale(1.0);
 		let color_fill = color.unwrap_or(COLOR_OVERLAY_WHITE);
 
 		let position = position.round() - DVec2::splat(0.5);
@@ -666,7 +645,7 @@ impl OverlayContextInternal {
 
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(color_fill), None, &circle);
 
-		self.scene.stroke(&kurbo::Stroke::new(1.0 * self.scale), transform, Self::parse_color(color_stroke), None, &circle);
+		self.scene.stroke(&kurbo::Stroke::new(self.scale(1.0)), transform, Self::parse_color(color_stroke), None, &circle);
 	}
 
 	fn dashed_ellipse(
@@ -718,7 +697,7 @@ impl OverlayContextInternal {
 		}
 
 		self.scene
-			.stroke(&kurbo::Stroke::new(1.0 * self.scale), self.get_transform(), Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
+			.stroke(&kurbo::Stroke::new(self.scale(1.0)), self.get_transform(), Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
 	}
 
 	fn draw_arc_gizmo_angle(&mut self, pivot: DVec2, bold_radius: f64, arc_radius: f64, offset_angle: f64, angle: f64) {
@@ -740,9 +719,9 @@ impl OverlayContextInternal {
 		let mut fill_color = Color::from_rgb_str(COLOR_OVERLAY_WHITE.strip_prefix('#').unwrap()).unwrap().with_alpha(0.05).to_rgba_hex_srgb();
 		fill_color.insert(0, '#');
 		let fill_color = Some(fill_color.as_str());
-		self.line(start + DVec2::X * radius * sign * self.scale, start + DVec2::X * (radius * scale * self.scale), None, None);
-		self.circle(start, radius * self.scale, fill_color, None);
-		self.circle(start, radius * scale.abs() * self.scale, fill_color, None);
+		self.line(start + DVec2::X * self.scale(radius * sign), start + DVec2::X * self.scale(radius * scale.abs()), None, None);
+		self.circle(start, self.scale(radius), fill_color, None);
+		self.circle(start, self.scale(radius * scale.abs()), fill_color, None);
 		self.text(
 			text,
 			COLOR_OVERLAY_BLUE,
@@ -754,10 +733,10 @@ impl OverlayContextInternal {
 	}
 
 	fn compass_rose(&mut self, compass_center: DVec2, angle: f64, show_compass_with_hover_ring: Option<bool>) {
-		let hover_ring_outer_radius: f64 = COMPASS_ROSE_HOVER_RING_DIAMETER / 2. * self.scale;
-		let main_ring_outer_radius: f64 = COMPASS_ROSE_MAIN_RING_DIAMETER / 2. * self.scale;
-		let main_ring_inner_radius: f64 = COMPASS_ROSE_RING_INNER_DIAMETER / 2. * self.scale;
-		let arrow_radius: f64 = COMPASS_ROSE_ARROW_SIZE / 2. * self.scale;
+		let hover_ring_outer_radius: f64 = self.scale(COMPASS_ROSE_HOVER_RING_DIAMETER / 2.);
+		let main_ring_outer_radius: f64 = self.scale(COMPASS_ROSE_MAIN_RING_DIAMETER / 2.);
+		let main_ring_inner_radius: f64 = self.scale(COMPASS_ROSE_RING_INNER_DIAMETER / 2.);
+		let arrow_radius: f64 = self.scale(COMPASS_ROSE_ARROW_SIZE / 2.);
 		let hover_ring_stroke_width: f64 = hover_ring_outer_radius - main_ring_inner_radius;
 		let hover_ring_centerline_radius: f64 = (hover_ring_outer_radius + main_ring_inner_radius) / 2.;
 		let main_ring_stroke_width: f64 = main_ring_outer_radius - main_ring_inner_radius;
@@ -816,13 +795,13 @@ impl OverlayContextInternal {
 		let transform = self.get_transform();
 
 		// Circle
-		let circle = kurbo::Circle::new((x, y), PIVOT_DIAMETER / 2. * self.scale);
+		let circle = kurbo::Circle::new((x, y), self.scale(PIVOT_DIAMETER / 2.));
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(COLOR_OVERLAY_YELLOW), None, &circle);
 
 		// Crosshair
-		let crosshair_radius: f64 = (PIVOT_CROSSHAIR_LENGTH - PIVOT_CROSSHAIR_THICKNESS) / 2. * self.scale;
+		let crosshair_radius: f64 = self.scale((PIVOT_CROSSHAIR_LENGTH - PIVOT_CROSSHAIR_THICKNESS) / 2.);
 
-		let mut stroke = kurbo::Stroke::new(PIVOT_CROSSHAIR_THICKNESS * self.scale);
+		let mut stroke = kurbo::Stroke::new(self.scale(PIVOT_CROSSHAIR_THICKNESS));
 		stroke = stroke.with_caps(kurbo::Cap::Round);
 
 		// Horizontal line
@@ -847,7 +826,7 @@ impl OverlayContextInternal {
 		let transform = self.get_transform();
 
 		// Draw the background circle with a white fill and colored outline
-		let circle = kurbo::Circle::new((x, y), DOWEL_PIN_RADIUS * self.scale);
+		let circle = kurbo::Circle::new((x, y), self.scale(DOWEL_PIN_RADIUS));
 		self.scene.fill(peniko::Fill::NonZero, transform, Self::parse_color(COLOR_OVERLAY_WHITE), None, &circle);
 		self.scene.stroke(&kurbo::Stroke::new(1.0), transform, Self::parse_color(color), None, &circle);
 
@@ -856,11 +835,11 @@ impl OverlayContextInternal {
 
 		// Top-left sector
 		path.move_to(kurbo::Point::new(x, y));
-		let end_x = x + DOWEL_PIN_RADIUS * (FRAC_PI_2 + angle).cos() * self.scale;
-		let end_y = y + DOWEL_PIN_RADIUS * (FRAC_PI_2 + angle).sin() * self.scale;
+		let end_x = self.scale(x + DOWEL_PIN_RADIUS * (FRAC_PI_2 + angle).cos());
+		let end_y = self.scale(y + DOWEL_PIN_RADIUS * (FRAC_PI_2 + angle).sin());
 		path.line_to(kurbo::Point::new(end_x, end_y));
 		// Draw arc manually
-		let arc = kurbo::Arc::new((x, y), (DOWEL_PIN_RADIUS * self.scale, DOWEL_PIN_RADIUS * self.scale), FRAC_PI_2 + angle, FRAC_PI_2, 0.0);
+		let arc = kurbo::Arc::new((x, y), (self.scale(DOWEL_PIN_RADIUS), self.scale(DOWEL_PIN_RADIUS)), FRAC_PI_2 + angle, FRAC_PI_2, 0.0);
 		arc.to_cubic_beziers(0.1, |p1, p2, p| {
 			path.curve_to(p1, p2, p);
 		});
@@ -868,11 +847,11 @@ impl OverlayContextInternal {
 
 		// Bottom-right sector
 		path.move_to(kurbo::Point::new(x, y));
-		let end_x = x + DOWEL_PIN_RADIUS * (PI + FRAC_PI_2 + angle).cos() * self.scale;
-		let end_y = y + DOWEL_PIN_RADIUS * (PI + FRAC_PI_2 + angle).sin() * self.scale;
+		let end_x = self.scale(x + DOWEL_PIN_RADIUS * (PI + FRAC_PI_2 + angle).cos());
+		let end_y = self.scale(y + DOWEL_PIN_RADIUS * (PI + FRAC_PI_2 + angle).sin());
 		path.line_to(kurbo::Point::new(end_x, end_y));
 		// Draw arc manually
-		let arc = kurbo::Arc::new((x, y), (DOWEL_PIN_RADIUS * self.scale, DOWEL_PIN_RADIUS * self.scale), PI + FRAC_PI_2 + angle, FRAC_PI_2, 0.0);
+		let arc = kurbo::Arc::new((x, y), (self.scale(DOWEL_PIN_RADIUS), self.scale(DOWEL_PIN_RADIUS)), PI + FRAC_PI_2 + angle, FRAC_PI_2, 0.0);
 		arc.to_cubic_beziers(0.1, |p1, p2, p| {
 			path.curve_to(p1, p2, p);
 		});
@@ -902,7 +881,7 @@ impl OverlayContextInternal {
 		}
 
 		self.scene
-			.stroke(&kurbo::Stroke::new(1.0 * self.scale), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
+			.stroke(&kurbo::Stroke::new(self.scale(1.0)), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
 	}
 
 	/// Used by the Pen tool in order to show how the bezier curve would look like.
@@ -912,7 +891,7 @@ impl OverlayContextInternal {
 		self.bezier_to_path(bezier, transform, true, &mut path);
 
 		self.scene
-			.stroke(&kurbo::Stroke::new(1.0 * self.scale), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
+			.stroke(&kurbo::Stroke::new(self.scale(1.0)), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
 	}
 
 	/// Used by the path tool segment mode in order to show the selected segments.
@@ -922,7 +901,7 @@ impl OverlayContextInternal {
 		self.bezier_to_path(bezier, transform, true, &mut path);
 
 		self.scene
-			.stroke(&kurbo::Stroke::new(4.0 * self.scale), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
+			.stroke(&kurbo::Stroke::new(self.scale(4.0)), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE), None, &path);
 	}
 
 	fn outline_overlay_bezier(&mut self, bezier: PathSeg, transform: DAffine2) {
@@ -931,7 +910,7 @@ impl OverlayContextInternal {
 		self.bezier_to_path(bezier, transform, true, &mut path);
 
 		self.scene
-			.stroke(&kurbo::Stroke::new(4.0 * self.scale), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE_50), None, &path);
+			.stroke(&kurbo::Stroke::new(self.scale(4.0)), vello_transform, Self::parse_color(COLOR_OVERLAY_BLUE_50), None, &path);
 	}
 
 	fn bezier_to_path(&self, bezier: PathSeg, transform: DAffine2, move_to: bool, path: &mut BezPath) {
@@ -1007,7 +986,7 @@ impl OverlayContextInternal {
 			let path = self.push_path(subpaths.iter(), transform);
 			let color = color.unwrap_or(COLOR_OVERLAY_BLUE);
 
-			self.scene.stroke(&kurbo::Stroke::new(1.0 * self.scale), self.get_transform(), Self::parse_color(color), None, &path);
+			self.scene.stroke(&kurbo::Stroke::new(self.scale(1.0)), self.get_transform(), Self::parse_color(color), None, &path);
 		}
 	}
 
@@ -1064,7 +1043,7 @@ impl OverlayContextInternal {
 		const FONT_SIZE: f64 = 12.0;
 
 		let typesetting = TypesettingConfig {
-			font_size: FONT_SIZE * self.scale,
+			font_size: self.scale(FONT_SIZE),
 			line_height_ratio: 1.2,
 			character_spacing: 0.0,
 			max_width: None,
@@ -1088,7 +1067,7 @@ impl OverlayContextInternal {
 
 		// Create typesetting configuration
 		let typesetting = TypesettingConfig {
-			font_size: FONT_SIZE * self.scale,
+			font_size: self.scale(FONT_SIZE),
 			line_height_ratio: 1.2,
 			character_spacing: 0.0,
 			max_width: None,
@@ -1195,5 +1174,13 @@ impl OverlayContextInternal {
 			self.line(quad.top_right(), quad.bottom_right(), None, None);
 			self.line(quad.bottom_left(), quad.bottom_right(), None, None);
 		}
+	}
+
+	fn scale(&self, n: f64) -> f64 {
+		self.viewport.convert_logical_to_physical(n)
+	}
+
+	fn inverse_scale(&self, n: f64) -> f64 {
+		self.viewport.convert_physical_to_logical(n)
 	}
 }

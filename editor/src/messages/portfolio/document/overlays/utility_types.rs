@@ -141,10 +141,7 @@ pub struct OverlayContext {
 	#[serde(skip, default = "overlay_canvas_context")]
 	#[specta(skip)]
 	pub render_context: web_sys::CanvasRenderingContext2d,
-	pub size: DVec2,
-	// The device pixel ratio is a property provided by the browser window and is the CSS pixel size divided by the physical monitor's pixel size.
-	// It allows better pixel density of visualizations on high-DPI displays where the OS display scaling is not 100%, or where the browser is zoomed.
-	pub device_pixel_ratio: f64,
+	pub viewport: ViewportMessageHandler,
 	pub visibility_settings: OverlaysVisibilitySettings,
 }
 // Message hashing isn't used but is required by the message system macros
