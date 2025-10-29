@@ -36,7 +36,14 @@ impl Spiral {
 		])
 	}
 
-	pub fn update_shape(document: &DocumentMessageHandler, ipp: &InputPreprocessorMessageHandler, viewport: &ViewportMessageHandler, layer: LayerNodeIdentifier, shape_tool_data: &mut ShapeToolData, responses: &mut VecDeque<Message>) {
+	pub fn update_shape(
+		document: &DocumentMessageHandler,
+		ipp: &InputPreprocessorMessageHandler,
+		viewport: &ViewportMessageHandler,
+		layer: LayerNodeIdentifier,
+		shape_tool_data: &mut ShapeToolData,
+		responses: &mut VecDeque<Message>,
+	) {
 		use graphene_std::vector::generator_nodes::spiral::*;
 
 		let viewport_drag_start = shape_tool_data.data.viewport_drag_start(document);

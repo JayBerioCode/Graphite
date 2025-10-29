@@ -70,7 +70,15 @@ impl Resize {
 		self.compute_snapped_resize_points(document, input, viewport, center, ratio, in_document)
 	}
 
-	pub fn calculate_transform(&mut self, document: &DocumentMessageHandler, input: &InputPreprocessorMessageHandler, viewport: &ViewportMessageHandler, center: Key, lock_ratio: Key, skip_rerender: bool) -> Option<Message> {
+	pub fn calculate_transform(
+		&mut self,
+		document: &DocumentMessageHandler,
+		input: &InputPreprocessorMessageHandler,
+		viewport: &ViewportMessageHandler,
+		center: Key,
+		lock_ratio: Key,
+		skip_rerender: bool,
+	) -> Option<Message> {
 		let points_viewport = self.calculate_points(document, input, viewport, center, lock_ratio)?;
 		Some(
 			GraphOperationMessage::TransformSet {

@@ -503,7 +503,15 @@ impl ShapeState {
 	}
 
 	// Snap, returning a viewport delta
-	pub fn snap(&self, snap_manager: &mut SnapManager, snap_cache: &SnapCache, document: &DocumentMessageHandler, input: &InputPreprocessorMessageHandler, viewport: &ViewportMessageHandler, previous_mouse: DVec2) -> DVec2 {
+	pub fn snap(
+		&self,
+		snap_manager: &mut SnapManager,
+		snap_cache: &SnapCache,
+		document: &DocumentMessageHandler,
+		input: &InputPreprocessorMessageHandler,
+		viewport: &ViewportMessageHandler,
+		previous_mouse: DVec2,
+	) -> DVec2 {
 		let snap_data = SnapData::new_snap_cache(document, input, viewport, snap_cache);
 
 		let mouse_delta = document

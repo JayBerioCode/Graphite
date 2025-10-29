@@ -5,5 +5,5 @@ use crate::messages::prelude::*;
 pub enum ViewportMessage {
 	UpdateScale { scale: f64 },
 	UpdateBounds { x: f64, y: f64, width: f64, height: f64 },
-    Trigger,
+	Trigger,
 }
