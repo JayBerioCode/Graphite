@@ -115,7 +115,7 @@ impl EditorMouseState {
 
 	pub fn to_mouse_state(&self, viewport: &ViewportMessageHandler) -> MouseState {
 		MouseState {
-			position: viewport.convert_logical_window_point_to_physical_viewport_point(self.editor_position).into(),
+			position: viewport.remove_offset_from_logical_point(self.editor_position).into(),
 			mouse_keys: self.mouse_keys,
 			scroll_delta: self.scroll_delta,
 		}

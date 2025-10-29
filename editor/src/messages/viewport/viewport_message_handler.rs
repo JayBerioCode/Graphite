@@ -127,35 +127,37 @@ impl ViewportMessageHandler {
 
 	pub fn apply_offset_to_logical_point<T: Into<LogicalPoint>>(&self, logical: T) -> LogicalPoint {
 		let logical = logical.into();
+		let offset = self.logical_offset();
 		LogicalPoint {
-			x: logical.x + self.bounds.x,
-			y: logical.y + self.bounds.y,
+			x: logical.x + offset.x,
+			y: logical.y + offset.y,
 		}
 	}
 
 	pub fn apply_offset_to_physical_point<T: Into<PhysicalPoint>>(&self, physical: T) -> PhysicalPoint {
 		let physical = physical.into();
-		let bounds = self.physical_bounds();
+		let offset = self.physical_offset();
 		PhysicalPoint {
-			x: physical.x + bounds.x,
-			y: physical.y + bounds.y,
+			x: physical.x + offset.x,
+			y: physical.y + offset.y,
 		}
 	}
 
 	pub fn remove_offset_from_logical_point<T: Into<LogicalPoint>>(&self, logical: T) -> LogicalPoint {
 		let logical = logical.into();
+		let offset = self.logical_offset();
 		LogicalPoint {
-			x: logical.x - self.bounds.x,
-			y: logical.y - self.bounds.y,
+			x: logical.x - offset.x,
+			y: logical.y - offset.y,
 		}
 	}
 
 	pub fn remove_offset_from_physical_point<T: Into<PhysicalPoint>>(&self, physical: T) -> PhysicalPoint {
 		let physical = physical.into();
-		let bounds = self.physical_bounds();
+		let offset = self.physical_offset();
 		PhysicalPoint {
-			x: physical.x - bounds.x,
-			y: physical.y - bounds.y,
+			x: physical.x - offset.x,
+			y: physical.y - offset.y,
 		}
 	}
 
