@@ -44,10 +44,10 @@ impl MessageHandler<OverlaysMessage, OverlaysMessageContext<'_>> for OverlaysMes
 
 				let size = viewport.physical_size().into_dvec2();
 
-				let [a, b, c, d, e, f] = DAffine2::from_scale(DVec2::splat(viewport.convert_logical_to_physical(1.0))).to_cols_array();
-				let _ = canvas_context.set_transform(a, b, c, d, e, f);
+				// let [a, b, c, d, e, f] = DAffine2::from_scale(DVec2::splat(viewport.convert_logical_to_physical(1.0))).to_cols_array();
+				// let _ = canvas_context.set_transform(a, b, c, d, e, f);
 				canvas_context.clear_rect(0., 0., size.x, size.y);
-				let _ = canvas_context.reset_transform();
+				// let _ = canvas_context.reset_transform();
 
 				if visibility_settings.all() {
 					responses.add(DocumentMessage::GridOverlays {
