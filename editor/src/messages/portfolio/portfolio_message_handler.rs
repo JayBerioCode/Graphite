@@ -363,10 +363,12 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 				for document_id in self.document_ids.iter() {
 					let node_to_inspect = self.node_to_inspect();
 					let viewport_resolution = viewport.physical_size().into_dvec2().round().as_uvec2();
+					let viewport_scale = viewport.convert_logical_to_physical(1.0);
 					if let Ok(message) = self.executor.submit_node_graph_evaluation(
 						self.documents.get_mut(document_id).expect("Tried to render non-existent document"),
 						*document_id,
 						viewport_resolution,
+						viewport_scale,
 						timing_information,
 						node_to_inspect,
 						true,
@@ -960,6 +962,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 			PortfolioMessage::SubmitGraphRender { document_id, ignore_hash } => {
 				let node_to_inspect = self.node_to_inspect();
 				let viewport_resolution = viewport.physical_size().into_dvec2().round().as_uvec2();
+				let viewport_scale = viewport.convert_logical_to_physical(1.0);
 				let Some(document) = self.documents.get_mut(&document_id) else {
 					log::error!("Tried to render non-existent document");
 					return;
@@ -967,7 +970,7 @@ impl MessageHandler<PortfolioMessage, PortfolioMessageContext<'_>> for Portfolio
 
 				let result = self
 					.executor
-					.submit_node_graph_evaluation(document, document_id, viewport_resolution, timing_information, node_to_inspect, ignore_hash);
+					.submit_node_graph_evaluation(document, document_id, viewport_resolution, viewport_scale, timing_information, node_to_inspect, ignore_hash);
 
 				match result {
 					Err(description) => {

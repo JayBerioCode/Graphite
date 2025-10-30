@@ -9,7 +9,7 @@ use graphene_std::application_io::TimingInformation;
 use graphene_std::application_io::{NodeGraphUpdateMessage, RenderConfig};
 use graphene_std::renderer::{RenderMetadata, format_transform_matrix};
 use graphene_std::text::FontCache;
-use graphene_std::transform::Footprint;
+use graphene_std::transform::{self, ApplyTransform, Footprint};
 use graphene_std::vector::Vector;
 use graphene_std::wasm_application_io::RenderOutputType;
 use interpreted_executor::dynamic_executor::ResolvedDocumentNodeTypesDelta;
@@ -60,6 +60,7 @@ pub struct NodeGraphExecutor {
 struct ExecutionContext {
 	export_config: Option<ExportConfig>,
 	document_id: DocumentId,
+	scale: f64,
 }
 
 impl NodeGraphExecutor {
@@ -136,11 +137,14 @@ impl NodeGraphExecutor {
 		document: &mut DocumentMessageHandler,
 		document_id: DocumentId,
 		viewport_resolution: UVec2,
+		viewport_scale: f64,
 		time: TimingInformation,
 	) -> Result<Message, String> {
+		let transform = DAffine2::from_scale(DVec2::splat(viewport_scale)) * document.metadata().document_to_viewport;
+
 		let render_config = RenderConfig {
 			viewport: Footprint {
-				transform: document.metadata().document_to_viewport,
+				transform,
 				resolution: viewport_resolution,
 				..Default::default()
 			},
@@ -157,7 +161,14 @@ impl NodeGraphExecutor {
 		// Execute the node graph
 		let execution_id = self.queue_execution(render_config);
 
-		self.futures.push_back((execution_id, ExecutionContext { export_config: None, document_id }));
+		self.futures.push_back((
+			execution_id,
+			ExecutionContext {
+				export_config: None,
+				document_id,
+				scale: viewport_scale,
+			},
+		));
 
 		Ok(DeferMessage::SetGraphSubmissionIndex { execution_id }.into())
 	}
@@ -168,12 +179,13 @@ impl NodeGraphExecutor {
 		document: &mut DocumentMessageHandler,
 		document_id: DocumentId,
 		viewport_resolution: UVec2,
+		viewport_scale: f64,
 		time: TimingInformation,
 		node_to_inspect: Option<NodeId>,
 		ignore_hash: bool,
 	) -> Result<Message, String> {
 		self.update_node_graph(document, node_to_inspect, ignore_hash)?;
-		self.submit_current_node_graph_evaluation(document, document_id, viewport_resolution, time)
+		self.submit_current_node_graph_evaluation(document, document_id, viewport_resolution, viewport_scale, time)
 	}
 
 	/// Evaluates a node graph for export
@@ -218,6 +230,7 @@ impl NodeGraphExecutor {
 		let execution_context = ExecutionContext {
 			export_config: Some(export_config),
 			document_id,
+			scale: 1.0,
 		};
 		self.futures.push_back((execution_id, execution_context));
 
@@ -349,7 +362,7 @@ impl NodeGraphExecutor {
 						// Special handling for exporting the artwork
 						self.export(node_graph_output, export_config, responses)?;
 					} else {
-						self.process_node_graph_output(node_graph_output, responses)?;
+						self.process_node_graph_output(node_graph_output, execution_context.scale, responses)?;
 					}
 					responses.add(DeferMessage::TriggerGraphRun {
 						execution_id,
@@ -397,7 +410,7 @@ impl NodeGraphExecutor {
 		Ok(())
 	}
 
-	fn process_node_graph_output(&mut self, node_graph_output: TaggedValue, responses: &mut VecDeque<Message>) -> Result<(), String> {
+	fn process_node_graph_output(&mut self, node_graph_output: TaggedValue, scale: f64, responses: &mut VecDeque<Message>) -> Result<(), String> {
 		let TaggedValue::RenderOutput(render_output) = node_graph_output else {
 			return Err(format!("Invalid node graph output type: {node_graph_output:#?}"));
 		};
@@ -422,12 +435,27 @@ impl NodeGraphExecutor {
 		}
 
 		let RenderMetadata {
-			upstream_footprints,
-			local_transforms,
+			mut upstream_footprints,
+			mut local_transforms,
 			first_element_source_id,
-			click_targets,
+			mut click_targets,
 			clip_targets,
 		} = render_output.metadata;
+
+		// Apply the scale reversed from the viewport scale
+		let transform = DAffine2::from_scale(DVec2::splat(1.0 / scale));
+
+		upstream_footprints.iter_mut().for_each(|(_id, footprint)| {
+			footprint.transform.apply_transform(&transform);
+		});
+		local_transforms.iter_mut().for_each(|(_id, local_transform)| {
+			local_transform.apply_transform(&transform);
+		});
+		click_targets.iter_mut().for_each(|(_id, targets)| {
+			targets.iter_mut().for_each(|target| {
+				target.apply_transform(transform);
+			});
+		});
 
 		// Run these update state messages immediately
 		responses.add(DocumentMessage::UpdateUpstreamTransforms {
