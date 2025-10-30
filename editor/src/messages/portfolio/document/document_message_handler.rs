@@ -973,9 +973,7 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 					self.navigation_handler.snapped_zoom(current_ptz.zoom() * (crate::consts::GRID_SIZE as f64))
 				};
 
-				let ruler_origin = viewport
-					.convert_logical_viewport_point_to_physical_window_point(document_to_viewport.transform_point2(DVec2::ZERO))
-					.into_dvec2();
+				let ruler_origin = document_to_viewport.transform_point2(DVec2::ZERO);
 				let log = ruler_scale.log2();
 				let mut ruler_interval: f64 = if log < 0. { 100. * 2_f64.powf(-log.ceil()) } else { 100. / 2_f64.powf(log.ceil()) };
 
@@ -1003,12 +1001,12 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 				});
 			}
 			DocumentMessage::RenderScrollbars => {
-				let document_transform_scale = self.navigation_handler.snapped_zoom(self.document_ptz.zoom());
+				let document_transform_scale = viewport.convert_physical_to_logical(self.navigation_handler.snapped_zoom(self.document_ptz.zoom()));
 
 				let scale = 0.5 + ASYMPTOTIC_EFFECT + document_transform_scale * SCALE_EFFECT;
 
-				let viewport_size = viewport.physical_size().into_dvec2();
-				let viewport_mid = viewport.physical_center().into_dvec2();
+				let viewport_size = viewport.logical_size().into_dvec2();
+				let viewport_mid = viewport_size / 2.;
 				let [bounds1, bounds2] = if !self.graph_view_overlay_open {
 					self.metadata().document_bounds_viewport_space().unwrap_or([viewport_mid; 2])
 				} else {

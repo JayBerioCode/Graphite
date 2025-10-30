@@ -137,7 +137,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 					log::error!("Could not get PTZ in CanvasPan");
 					return;
 				};
-				let document_to_viewport = self.calculate_offset_transform(viewport.physical_center().into(), ptz);
+				let document_to_viewport = self.calculate_offset_transform(viewport.physical_size().into_dvec2() / 2., ptz);
 				let transformed_delta = document_to_viewport.inverse().transform_vector2(delta);
 
 				ptz.pan += transformed_delta;
@@ -171,7 +171,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 					log::error!("Could not get node graph PTZ in CanvasPanByViewportFraction");
 					return;
 				};
-				let document_to_viewport = self.calculate_offset_transform(viewport.physical_center().into(), ptz);
+				let document_to_viewport = self.calculate_offset_transform(viewport.physical_size().into_dvec2() / 2., ptz);
 				let transformed_delta = document_to_viewport.inverse().transform_vector2(delta * viewport.physical_size().into_dvec2());
 
 				ptz.pan += transformed_delta;
@@ -239,7 +239,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 				}
 				let document_bounds = if !graph_view_overlay_open {
 					// TODO: Cache this in node graph coordinates and apply the transform to the rectangle to get viewport coordinates
-					network_interface.document_metadata().document_bounds_viewport_space().map(|rect| [rect[0], rect[1]])
+					network_interface.document_metadata().document_bounds_viewport_space()
 				} else {
 					network_interface.graph_bounds_viewport_space(breadcrumb_network_path)
 				};
@@ -249,7 +249,9 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 
 				zoom_factor *= Self::clamp_zoom(ptz.zoom() * zoom_factor, document_bounds, old_zoom, viewport);
 
-				responses.add(self.center_zoom(viewport.physical_size().into(), zoom_factor, ipp.mouse.position));
+				// TODO: Find out why removing the offset is necessary here, since the mouse position is already in viewport space
+				let mouse_position = viewport.remove_offset_from_logical_point(ipp.mouse.position).into_dvec2();
+				responses.add(self.center_zoom(viewport.logical_size().into(), zoom_factor, mouse_position));
 				responses.add(NavigationMessage::CanvasZoomSet {
 					zoom_factor: ptz.zoom() * zoom_factor,
 				});
@@ -257,7 +259,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 			NavigationMessage::CanvasZoomSet { zoom_factor } => {
 				let document_bounds = if !graph_view_overlay_open {
 					// TODO: Cache this in node graph coordinates and apply the transform to the rectangle to get viewport coordinates
-					network_interface.document_metadata().document_bounds_viewport_space().map(|rect| [rect[0], rect[1]])
+					network_interface.document_metadata().document_bounds_viewport_space()
 				} else {
 					network_interface.graph_bounds_viewport_space(breadcrumb_network_path)
 				};
@@ -345,7 +347,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 				let (pos1, pos2) = (pos1.min(pos2), pos1.max(pos2));
 				let diagonal = pos2 - pos1;
 
-				if diagonal.length() < f64::EPSILON * 1000. || viewport.physical_size().into_dvec2() == DVec2::ZERO {
+				if diagonal.length() < f64::EPSILON * 1000. || viewport.logical_size().into_dvec2() == DVec2::ZERO {
 					warn!("Cannot center since the viewport size is 0");
 					return;
 				}
@@ -354,10 +356,10 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 					log::error!("Could not get node graph PTZ in CanvasPanByViewportFraction");
 					return;
 				};
-				let document_to_viewport = self.calculate_offset_transform(viewport.physical_center().into(), ptz);
+				let document_to_viewport = self.calculate_offset_transform(viewport.logical_size().into_dvec2().ceil() / 2., ptz);
 
 				let v1 = document_to_viewport.inverse().transform_point2(DVec2::ZERO);
-				let v2 = document_to_viewport.inverse().transform_point2(viewport.physical_size().into());
+				let v2 = document_to_viewport.inverse().transform_point2(viewport.logical_size().into_dvec2().ceil());
 
 				let center = ((v2 + v1) - (pos2 + pos1)) / 2.;
 				let size = (v2 - v1) / diagonal;
@@ -399,7 +401,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 						log::error!("Could not get node graph PTZ in FitViewportToSelection");
 						return;
 					};
-					let document_to_viewport = self.calculate_offset_transform(viewport.physical_center().into(), ptz);
+					let document_to_viewport = self.calculate_offset_transform(viewport.physical_size().into_dvec2() / 2., ptz);
 					responses.add(NavigationMessage::FitViewportToBounds {
 						bounds: [document_to_viewport.inverse().transform_point2(bounds[0]), document_to_viewport.inverse().transform_point2(bounds[1])],
 						prevent_zoom_past_100: false,
