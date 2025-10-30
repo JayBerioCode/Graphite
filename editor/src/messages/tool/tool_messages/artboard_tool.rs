@@ -362,7 +362,7 @@ impl Fsm for ArtboardToolFsmState {
 			(ArtboardToolFsmState::Drawing, ArtboardToolMessage::PointerMove { constrain_axis_or_aspect, center }) => {
 				// The draw.calculate_points_ignore_layer uses this value to avoid snapping to itself.
 				tool_data.draw.layer = tool_data.selected_artboard;
-        let [start, end] = tool_data.draw.calculate_points_ignore_layer(document, input, viewport, center, constrain_axis_or_aspect, true);
+				let [start, end] = tool_data.draw.calculate_points_ignore_layer(document, input, viewport, center, constrain_axis_or_aspect, true);
 				let viewport_to_document = document.metadata().document_to_viewport.inverse();
 				let [start, end] = [start, end].map(|point| viewport_to_document.transform_point2(point));
 				if let Some(artboard) = tool_data.selected_artboard {
