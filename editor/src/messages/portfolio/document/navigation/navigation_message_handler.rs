@@ -249,7 +249,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 
 				zoom_factor *= Self::clamp_zoom(ptz.zoom() * zoom_factor, document_bounds, old_zoom, viewport);
 
-				// TODO: Find out why removing the offset is necessary here, since the mouse position is already in viewport space
+				// TODO: Find out why removing the offset is necessary here, since the mouse position is already in viewport space.
 				let mouse_position = viewport.remove_offset_from_logical_point(ipp.mouse.position).into_dvec2();
 				responses.add(self.center_zoom(viewport.logical_size().into(), zoom_factor, mouse_position));
 				responses.add(NavigationMessage::CanvasZoomSet {
