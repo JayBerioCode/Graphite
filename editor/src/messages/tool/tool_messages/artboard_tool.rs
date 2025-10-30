@@ -545,7 +545,9 @@ impl Fsm for ArtboardToolFsmState {
 				let scale = DAffine2::from_scale(enlargement_factor);
 				let pivot = DAffine2::from_translation(pivot);
 				let transformation = pivot * scale * pivot.inverse();
-				let document_to_viewport = document.navigation_handler.calculate_offset_transform(viewport.physical_center().into(), &document.document_ptz);
+				let document_to_viewport = document
+					.navigation_handler
+					.calculate_offset_transform(viewport.logical_center_in_window_space().into(), &document.document_ptz);
 				let to = document_to_viewport.inverse() * document.metadata().downstream_transform_to_viewport(selected_artboard);
 				let original_transform = document.metadata().upstream_transform(selected_artboard.to_node());
 				let new = to.inverse() * transformation * to * original_transform;

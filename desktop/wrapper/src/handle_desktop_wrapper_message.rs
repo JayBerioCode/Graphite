@@ -110,10 +110,6 @@ pub(super) fn handle_desktop_wrapper_message(dispatcher: &mut DesktopWrapperMess
 			};
 			dispatcher.queue_editor_message(message);
 		}
-		DesktopWrapperMessage::UpdateViewportScale { scale } => {
-			let message = ViewportMessage::UpdateScale { scale };
-			dispatcher.queue_editor_message(message);
-		}
 		DesktopWrapperMessage::PollNodeGraphEvaluation => dispatcher.poll_node_graph_evaluation(),
 		DesktopWrapperMessage::UpdatePlatform(platform) => {
 			let platform = match platform {

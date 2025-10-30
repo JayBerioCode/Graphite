@@ -79,16 +79,24 @@ impl ViewportMessageHandler {
 		self.logical_size().to_physical(self.scale)
 	}
 
-	pub fn logical_center(&self) -> LogicalPoint {
-		let logical_bounds = self.logical_bounds();
+	pub fn logical_center_in_viewport_space(&self) -> LogicalPoint {
+		let logical_size = self.logical_size();
 		LogicalPoint {
-			x: logical_bounds.x + logical_bounds.width / 2.0,
-			y: logical_bounds.y + logical_bounds.height / 2.0,
+			x: logical_size.x / 2.0,
+			y: logical_size.y / 2.0,
 		}
 	}
 
-	pub fn physical_center(&self) -> PhysicalPoint {
-		self.logical_center().to_physical(self.scale)
+	pub fn physical_center_in_viewport_space(&self) -> PhysicalPoint {
+		self.logical_center_in_viewport_space().to_physical(self.scale)
+	}
+
+	pub fn logical_center_in_window_space(&self) -> LogicalPoint {
+		self.apply_offset_to_logical_point(self.logical_center_in_viewport_space())
+	}
+
+	pub fn physical_center_in_window_space(&self) -> PhysicalPoint {
+		self.logical_center_in_window_space().to_physical(self.scale)
 	}
 
 	pub fn in_logical_bounds<T: Into<LogicalPoint>>(&self, point: T) -> bool {
@@ -318,14 +326,14 @@ impl From<glam::DVec2> for PhysicalPoint {
 		Self { x: vec.x, y: vec.y }
 	}
 }
-impl Into<glam::DVec2> for LogicalPoint {
-	fn into(self) -> glam::DVec2 {
-		glam::DVec2::new(self.x, self.y)
+impl From<LogicalPoint> for glam::DVec2 {
+	fn from(val: LogicalPoint) -> Self {
+		glam::DVec2::new(val.x, val.y)
 	}
 }
-impl Into<glam::DVec2> for PhysicalPoint {
-	fn into(self) -> glam::DVec2 {
-		glam::DVec2::new(self.x, self.y)
+impl From<PhysicalPoint> for glam::DVec2 {
+	fn from(val: PhysicalPoint) -> Self {
+		glam::DVec2::new(val.x, val.y)
 	}
 }
 
@@ -349,14 +357,14 @@ impl From<[glam::DVec2; 2]> for PhysicalBounds {
 		}
 	}
 }
-impl Into<[glam::DVec2; 2]> for LogicalBounds {
-	fn into(self) -> [glam::DVec2; 2] {
-		[glam::DVec2::new(self.x, self.y), glam::DVec2::new(self.x + self.width, self.y + self.height)]
+impl From<LogicalBounds> for [glam::DVec2; 2] {
+	fn from(bounds: LogicalBounds) -> Self {
+		[glam::DVec2::new(bounds.x, bounds.y), glam::DVec2::new(bounds.x + bounds.width, bounds.y + bounds.height)]
 	}
 }
-impl Into<[glam::DVec2; 2]> for PhysicalBounds {
-	fn into(self) -> [glam::DVec2; 2] {
-		[glam::DVec2::new(self.x, self.y), glam::DVec2::new(self.x + self.width, self.y + self.height)]
+impl From<PhysicalBounds> for [glam::DVec2; 2] {
+	fn from(bounds: PhysicalBounds) -> Self {
+		[glam::DVec2::new(bounds.x, bounds.y), glam::DVec2::new(bounds.x + bounds.width, bounds.y + bounds.height)]
 	}
 }
 

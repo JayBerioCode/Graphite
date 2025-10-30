@@ -91,9 +91,6 @@ pub enum DesktopWrapperMessage {
 		path: PathBuf,
 		content: Vec<u8>,
 	},
-	UpdateViewportScale {
-		scale: f64,
-	},
 	PollNodeGraphEvaluation,
 	UpdatePlatform(Platform),
 	UpdateMaximized {

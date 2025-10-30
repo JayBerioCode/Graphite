@@ -831,7 +831,9 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 				let scale = DAffine2::from_scale(enlargement_factor);
 				let pivot = DAffine2::from_translation(pivot);
 				let transformation = pivot * scale * pivot.inverse();
-				let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+				let document_to_viewport = self
+					.navigation_handler
+					.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 
 				for layer in self.network_interface.shallowest_unique_layers(&[]).filter(|layer| can_move(*layer)) {
 					let to = document_to_viewport.inverse() * self.metadata().downstream_transform_to_viewport(layer);
@@ -856,9 +858,11 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 				let image_size = DVec2::new(image.width as f64, image.height as f64);
 
 				// Align the layer with the mouse or center of viewport
-				let viewport_location = mouse.map_or(viewport.logical_center().into_dvec2() + viewport.logical_offset().into_dvec2(), |pos| pos.into());
+				let viewport_location = mouse.map_or(viewport.logical_center_in_viewport_space().into_dvec2() + viewport.logical_offset().into_dvec2(), |pos| pos.into());
 
-				let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+				let document_to_viewport = self
+					.navigation_handler
+					.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 				let center_in_viewport = DAffine2::from_translation(document_to_viewport.inverse().transform_point2(viewport_location - viewport.logical_offset().into_dvec2()));
 				let center_in_viewport_layerspace = center_in_viewport;
 
@@ -908,8 +912,10 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 				mouse,
 				parent_and_insert_index,
 			} => {
-				let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
-				let viewport_location = mouse.map_or(viewport.logical_center().into_dvec2() + viewport.logical_offset().into_dvec2(), |pos| pos.into());
+				let document_to_viewport = self
+					.navigation_handler
+					.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
+				let viewport_location = mouse.map_or(viewport.logical_center_in_viewport_space().into_dvec2() + viewport.logical_offset().into_dvec2(), |pos| pos.into());
 				let center_in_viewport = DAffine2::from_translation(document_to_viewport.inverse().transform_point2(viewport_location - viewport.logical_offset().into_dvec2()));
 
 				let layer_node_id = NodeId::new();
@@ -965,7 +971,7 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 				} else {
 					&self.document_ptz
 				};
-				let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), current_ptz);
+				let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), current_ptz);
 
 				let ruler_scale = if !self.graph_view_overlay_open {
 					self.navigation_handler.snapped_zoom(current_ptz.zoom())
@@ -1478,7 +1484,9 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 			}
 			DocumentMessage::PTZUpdate => {
 				if !self.graph_view_overlay_open {
-					let transform = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+					let transform = self
+						.navigation_handler
+						.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 					self.network_interface.set_document_to_viewport_transform(transform);
 					// Ensure selection box is kept in sync with the pointer when the PTZ changes
 					responses.add(SelectToolMessage::PointerMove {
@@ -1495,9 +1503,10 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 						return;
 					};
 
-					let transform = self
-						.navigation_handler
-						.calculate_offset_transform(viewport.logical_center().into(), &network_metadata.persistent_metadata.navigation_metadata.node_graph_ptz);
+					let transform = self.navigation_handler.calculate_offset_transform(
+						viewport.logical_center_in_viewport_space().into(),
+						&network_metadata.persistent_metadata.navigation_metadata.node_graph_ptz,
+					);
 					self.network_interface.set_transform(transform, &self.breadcrumb_network_path);
 
 					responses.add(DocumentMessage::RenderRulers);
@@ -1652,7 +1661,9 @@ impl MessageHandler<DocumentMessage, DocumentMessageContext<'_>> for DocumentMes
 impl DocumentMessageHandler {
 	/// Runs an intersection test with all layers and a viewport space quad
 	pub fn intersect_quad<'a>(&'a self, viewport_quad: graphene_std::renderer::Quad, viewport: &ViewportMessageHandler) -> impl Iterator<Item = LayerNodeIdentifier> + use<'a> {
-		let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+		let document_to_viewport = self
+			.navigation_handler
+			.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 		let document_quad = document_to_viewport.inverse() * viewport_quad;
 
 		ClickXRayIter::new(&self.network_interface, XRayTarget::Quad(document_quad))
@@ -1665,7 +1676,9 @@ impl DocumentMessageHandler {
 
 	/// Runs an intersection test with all layers and a viewport space subpath
 	pub fn intersect_polygon<'a>(&'a self, mut viewport_polygon: Subpath<PointId>, viewport: &ViewportMessageHandler) -> impl Iterator<Item = LayerNodeIdentifier> + use<'a> {
-		let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+		let document_to_viewport = self
+			.navigation_handler
+			.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 		viewport_polygon.apply_transform(document_to_viewport.inverse());
 
 		ClickXRayIter::new(&self.network_interface, XRayTarget::Polygon(viewport_polygon))
@@ -1701,7 +1714,9 @@ impl DocumentMessageHandler {
 	}
 
 	pub fn is_layer_fully_inside_polygon(&self, layer: &LayerNodeIdentifier, viewport: &ViewportMessageHandler, mut viewport_polygon: Subpath<PointId>) -> bool {
-		let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+		let document_to_viewport = self
+			.navigation_handler
+			.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 		viewport_polygon.apply_transform(document_to_viewport.inverse());
 
 		let layer_click_targets = self.network_interface.document_metadata().click_targets(*layer);
@@ -1725,7 +1740,9 @@ impl DocumentMessageHandler {
 
 	/// Find all of the layers that were clicked on from a viewport space location
 	pub fn click_xray(&self, ipp: &InputPreprocessorMessageHandler, viewport: &ViewportMessageHandler) -> impl Iterator<Item = LayerNodeIdentifier> + use<'_> {
-		let document_to_viewport = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+		let document_to_viewport = self
+			.navigation_handler
+			.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 		let point = document_to_viewport.inverse().transform_point2(ipp.mouse.position);
 		ClickXRayIter::new(&self.network_interface, XRayTarget::Point(point))
 	}
@@ -1957,7 +1974,9 @@ impl DocumentMessageHandler {
 		std::mem::swap(&mut network_interface.resolved_types, &mut self.network_interface.resolved_types);
 
 		//Update the metadata transform based on document PTZ
-		let transform = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+		let transform = self
+			.navigation_handler
+			.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 		network_interface.set_document_to_viewport_transform(transform);
 
 		// Ensure document structure is loaded so that updating the selected nodes has the correct metadata
@@ -1995,7 +2014,9 @@ impl DocumentMessageHandler {
 		std::mem::swap(&mut network_interface.resolved_types, &mut self.network_interface.resolved_types);
 
 		//Update the metadata transform based on document PTZ
-		let transform = self.navigation_handler.calculate_offset_transform(viewport.logical_center().into(), &self.document_ptz);
+		let transform = self
+			.navigation_handler
+			.calculate_offset_transform(viewport.logical_center_in_viewport_space().into(), &self.document_ptz);
 		network_interface.set_document_to_viewport_transform(transform);
 
 		let previous_network = std::mem::replace(&mut self.network_interface, network_interface);

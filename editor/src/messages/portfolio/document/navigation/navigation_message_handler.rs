@@ -137,7 +137,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 					log::error!("Could not get PTZ in CanvasPan");
 					return;
 				};
-				let document_to_viewport = self.calculate_offset_transform(viewport.physical_size().into_dvec2() / 2., ptz);
+				let document_to_viewport = self.calculate_offset_transform(viewport.logical_center_in_viewport_space().into_dvec2(), ptz);
 				let transformed_delta = document_to_viewport.inverse().transform_vector2(delta);
 
 				ptz.pan += transformed_delta;
@@ -171,7 +171,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 					log::error!("Could not get node graph PTZ in CanvasPanByViewportFraction");
 					return;
 				};
-				let document_to_viewport = self.calculate_offset_transform(viewport.physical_size().into_dvec2() / 2., ptz);
+				let document_to_viewport = self.calculate_offset_transform(viewport.logical_center_in_viewport_space().into_dvec2(), ptz);
 				let transformed_delta = document_to_viewport.inverse().transform_vector2(delta * viewport.physical_size().into_dvec2());
 
 				ptz.pan += transformed_delta;
@@ -249,9 +249,7 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 
 				zoom_factor *= Self::clamp_zoom(ptz.zoom() * zoom_factor, document_bounds, old_zoom, viewport);
 
-				// TODO: Find out why removing the offset is necessary here, since the mouse position is already in viewport space.
-				let mouse_position = viewport.remove_offset_from_logical_point(ipp.mouse.position).into_dvec2();
-				responses.add(self.center_zoom(viewport.logical_size().into(), zoom_factor, mouse_position));
+				responses.add(self.center_zoom(viewport.logical_size().into(), zoom_factor, ipp.mouse.position));
 				responses.add(NavigationMessage::CanvasZoomSet {
 					zoom_factor: ptz.zoom() * zoom_factor,
 				});
@@ -356,10 +354,10 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 					log::error!("Could not get node graph PTZ in CanvasPanByViewportFraction");
 					return;
 				};
-				let document_to_viewport = self.calculate_offset_transform(viewport.logical_size().into_dvec2().ceil() / 2., ptz);
+				let document_to_viewport = self.calculate_offset_transform(viewport.logical_center_in_viewport_space().into_dvec2(), ptz);
 
 				let v1 = document_to_viewport.inverse().transform_point2(DVec2::ZERO);
-				let v2 = document_to_viewport.inverse().transform_point2(viewport.logical_size().into_dvec2().ceil());
+				let v2 = document_to_viewport.inverse().transform_point2(viewport.logical_size().into_dvec2());
 
 				let center = ((v2 + v1) - (pos2 + pos1)) / 2.;
 				let size = (v2 - v1) / diagonal;
@@ -401,7 +399,8 @@ impl MessageHandler<NavigationMessage, NavigationMessageContext<'_>> for Navigat
 						log::error!("Could not get node graph PTZ in FitViewportToSelection");
 						return;
 					};
-					let document_to_viewport = self.calculate_offset_transform(viewport.physical_size().into_dvec2() / 2., ptz);
+
+					let document_to_viewport = self.calculate_offset_transform(viewport.logical_center_in_viewport_space().into_dvec2(), ptz);
 					responses.add(NavigationMessage::FitViewportToBounds {
 						bounds: [document_to_viewport.inverse().transform_point2(bounds[0]), document_to_viewport.inverse().transform_point2(bounds[1])],
 						prevent_zoom_past_100: false,

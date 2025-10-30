@@ -15,7 +15,7 @@ fn grid_overlay_rectangular(document: &DocumentMessageHandler, overlay_context: 
 	};
 	let document_to_viewport = document
 		.navigation_handler
-		.calculate_offset_transform(overlay_context.viewport.logical_center().into(), &document.document_ptz);
+		.calculate_offset_transform(overlay_context.viewport.logical_center_in_viewport_space().into(), &document.document_ptz);
 
 	let bounds = document_to_viewport.inverse() * Quad::from_box([DVec2::ZERO, overlay_context.viewport.logical_size().into()]);
 
@@ -56,7 +56,7 @@ fn grid_overlay_rectangular_dot(document: &DocumentMessageHandler, overlay_conte
 	};
 	let document_to_viewport = document
 		.navigation_handler
-		.calculate_offset_transform(overlay_context.viewport.logical_center().into(), &document.document_ptz);
+		.calculate_offset_transform(overlay_context.viewport.logical_center_in_viewport_space().into(), &document.document_ptz);
 
 	let bounds = document_to_viewport.inverse() * Quad::from_box([DVec2::ZERO, overlay_context.viewport.logical_size().into()]);
 
@@ -91,7 +91,7 @@ fn grid_overlay_isometric(document: &DocumentMessageHandler, overlay_context: &m
 	let origin = document.snapping_state.grid.origin;
 	let document_to_viewport = document
 		.navigation_handler
-		.calculate_offset_transform(overlay_context.viewport.logical_center().into(), &document.document_ptz);
+		.calculate_offset_transform(overlay_context.viewport.logical_center_in_viewport_space().into(), &document.document_ptz);
 
 	let bounds = document_to_viewport.inverse() * Quad::from_box([DVec2::ZERO, overlay_context.viewport.logical_size().into()]);
 	let tan_a = angle_a.to_radians().tan();
@@ -136,7 +136,7 @@ fn grid_overlay_isometric_dot(document: &DocumentMessageHandler, overlay_context
 	let origin = document.snapping_state.grid.origin;
 	let document_to_viewport = document
 		.navigation_handler
-		.calculate_offset_transform(overlay_context.viewport.logical_center().into(), &document.document_ptz);
+		.calculate_offset_transform(overlay_context.viewport.logical_center_in_viewport_space().into(), &document.document_ptz);
 
 	let bounds = document_to_viewport.inverse() * Quad::from_box([DVec2::ZERO, overlay_context.viewport.logical_size().into()]);
 	let tan_a = angle_a.to_radians().tan();
