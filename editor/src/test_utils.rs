@@ -296,8 +296,11 @@ impl EditorTestUtils {
 
 	/// Necessary for doing snapping since snaps outside of the viewport are discarded
 	pub async fn set_viewport_size(&mut self, top_left: DVec2, bottom_right: DVec2) {
-		self.handle_message(InputPreprocessorMessage::BoundsOfViewports {
-			bounds_of_viewports: vec![ViewportBounds { top_left, bottom_right }],
+		self.handle_message(ViewportMessage::UpdateBounds {
+			x: top_left.x,
+			y: top_left.y,
+			width: bottom_right.x - top_leftx,
+			height: bottom_right.y - top_left.y,
 		})
 		.await;
 	}
