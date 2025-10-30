@@ -299,7 +299,7 @@ impl EditorTestUtils {
 		self.handle_message(ViewportMessage::UpdateBounds {
 			x: top_left.x,
 			y: top_left.y,
-			width: bottom_right.x - top_leftx,
+			width: bottom_right.x - top_left.x,
 			height: bottom_right.y - top_left.y,
 		})
 		.await;
