@@ -1,0 +1,6 @@
+services:
+  graphite:
+    image: graphite
+    build:
+      context: .
+      dockerfile: ./Dockerfile
